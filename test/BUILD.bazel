@@ -1,0 +1,81 @@
+# SPDX-FileCopyrightText: 2026 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# SPMD dialect unit tests.
+#
+# One lit_test target per .mlir file, so `bazel test //test:spmd_tests` runs the
+# whole suite and a failure names the file that failed. The RUN lines inside the
+# .mlir files are the source of truth for what each test does; see
+# test/lit.cfg.py for how spmd-opt and FileCheck are located.
+#
+# The spmd-opt they run is //test/lib:spmd-opt: the same driver as
+# //spmd-opt:spmd-opt, plus the -test-* passes that make analyses observable.
+#
+# These tests are hermetic: they need only spmd-opt, FileCheck and the API
+# descriptions in includesProgramModels/, all from this repository. End-to-end
+# verification quality is measured separately by the benchmark suites under
+# externals/, which CI runs through their own CMake+lit setup.
+
+load("@llvm-project//llvm:lit_test.bzl", "lit_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# Environment variable prefix -> directory under includesProgramModels/.
+# -convert-apiCalls-to-spmd reads <PREFIX>_JSON_PATH for every model it
+# registers, and fails the pass if any one is missing.
+_API_JSONS = {
+    "CUDA": "cuda",
+    "MPI": "mpi",
+    "NCCL": "nccl",
+    "NVSHMEM": "mynvshmem",
+    "OMP": "omp",
+    "SHMEM": "shmem",
+}
+
+# Every .mlir under test/spmd/ carries RUN lines. The .c/.cpp files next to them
+# are inputs for the manual scripts in utility/ and are not collected.
+_TESTS = glob(
+    ["spmd/**/*.mlir"],
+    allow_empty = True,
+)
+
+# lit_test itself rewrites "/" to "_" in the target name, so do it up front and
+# the test_suite below can name the targets it actually created.
+_TEST_NAMES = [src.replace("/", "_") + ".test" for src in _TESTS]
+
+[
+    lit_test(
+        name = src.replace("/", "_") + ".test",
+        size = "small",
+        srcs = [src],
+        # $(rootpath) requires these to be direct prerequisites of the rule, so
+        # they are listed here rather than pulled in through a filegroup.
+        args = [
+            "-Dspmd_opt=$(rootpath //test/lib:spmd-opt)",
+            "-Dfilecheck=$(rootpath @llvm-project//llvm:FileCheck)",
+        ] + [
+            "-D%s_JSON_PATH=$(rootpath //includesProgramModels:%s/api.json)" % (prefix, model)
+            for prefix, model in _API_JSONS.items()
+        ],
+        data = [
+            "lit.cfg.py",
+            "//test/lib:spmd-opt",
+            "@llvm-project//llvm:FileCheck",
+        ] + [
+            "//includesProgramModels:%s/api.json" % model
+            for model in _API_JSONS.values()
+        ],
+    )
+    for src in _TESTS
+]
+
+test_suite(
+    name = "spmd_tests",
+    tests = _TEST_NAMES + [
+        "//test/abi:mpich_abi_test",
+        "//test/abi:nccl_abi_test",
+        "//test/abi:nvshmem_abi_test",
+        "//test/abi:openshmem_abi_test",
+    ],
+)

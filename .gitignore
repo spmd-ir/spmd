@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# Nested build directory
+/build*
+spmdOutput*.mlir
+llvmOnly.mlir
+highlevel.mlir
+midlevel.mlir
+*.ll
+*.tex
+!/docs/figures/*.tex
+/docs/figures/build/
+/examples/*/*/*.o
+/mpiWrapper/*.o
+
+bazel-bin
+bazel-out
+bazel-spmdOutpu
+bazel-testlogs
+bazel-spmd
+bazel-*
+# Local agent/editor config, not part of the project
+.claude/
+.mcp.json

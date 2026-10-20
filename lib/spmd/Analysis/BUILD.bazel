@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# SPMD Analysis Library
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "SPMDAnalysis",
+    srcs = [
+        "UniformityAnalysis.cpp",
+        "AvailableCollectives.cpp",
+        "CommBuffers.cpp",
+        "CommCompletions.cpp",
+        "HandleOriginsAnalysis.cpp",
+        "HandleSlotAnalysis.cpp",
+        "CommOriginsAnalysis.cpp",
+        "PendingAccessAnalysis.cpp",
+        "ExecutionContextAnalysis.cpp",
+        "CollectiveMismatchAnalysis.cpp",
+        "ParallelContextAnalysis.cpp",
+        # "ExecutionInfoAnalysis.cpp",
+    ],
+    hdrs = [],
+    includes = ["."],
+    deps = [
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDTraits",
+        "//include/spmd/Analysis:SPMDAnalysisHeaders",
+        "//lib/spmd/Utils:MemoryOffsets",
+        "//lib/spmd/Utils:PassUtils",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:AffineAnalysis",
+        "@llvm-project//mlir:Analysis",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:FunctionInterfaces",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:SCFDialect",
+        "@llvm-project//mlir:SideEffectInterfaces",
+    ],
+)

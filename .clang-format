@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# Plain upstream LLVM style, deliberately without local tweaks: this project is
+# an MLIR dialect, so code moved in from or aligned with llvm-project/mlir
+# should not churn on arrival. Enzyme-JAX uses the same single-line config.
+BasedOnStyle: LLVM

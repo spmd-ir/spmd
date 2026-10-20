@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+genrule(
+    name = "spmd-verify",
+    srcs = [
+        "spmd-verify.sh",
+        "//spmd-opt",
+        "@reactant//:reactant-clang",
+        "@reactant//:reactant-clang-resource",
+        "@llvm-project//clang:clang-linker-wrapper",
+        "@llvm-project//clang:clang-offload-bundler",
+        "@llvm-project//llvm:llvm-offload-binary",
+        "@llvm-project//lld:ld.lld",
+        "@llvm-project//mlir:mlir-translate",
+        "@reactant//:reactant-opt",
+    ],
+    outs = ["spmd-verify"],
+    cmd = """
+        cp $(location spmd-verify.sh) $@
+        chmod +x $@
+
+        sed -i 's#@SPMD_OPT_PATH@#$(location //spmd-opt:spmd-opt)#g' $@
+        sed -i 's#@REACTANT_CLANG_BIN@*#$(location @reactant//:reactant-clang)#g' $@
+        sed -i 's#@REACTANT_OPT_BIN@*#$(location @reactant//:reactant-opt)#g' $@
+        sed -i 's#@REACTANT_CLANG_RESOURCE@*#$(locations @reactant//:reactant-clang-resource)#g' $@
+        sed -i 's#@CLANG_LINKER_WRAPPER_PATH@*#$(location @llvm-project//clang:clang-linker-wrapper)#g' $@
+
+        sed -i 's#@CLANG_OFFLOAD_BUNDLER_PATH@*#$(location @llvm-project//clang:clang-offload-bundler)#g' $@
+        sed -i 's#@LLVM_OFFLOAD_BINARY_PATH@*#$(location @llvm-project//llvm:llvm-offload-binary)#g' $@
+
+        sed -i 's#@LLD_PATH@#$(location @llvm-project//lld:ld.lld)#g' $@
+        sed -i 's#@MLIR_TRANSLATE_PATH@#$(location @llvm-project//mlir:mlir-translate)#g' $@
+    """,
+    executable = True,
+)

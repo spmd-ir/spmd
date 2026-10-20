@@ -1,0 +1,90 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# Program Models Include Files
+
+package(default_visibility = ["//visibility:public"])
+
+# The API descriptions, addressable one by one so a rule can pass a single file
+# with $(rootpath), as //test:spmd_tests does.
+exports_files(glob(["*/api.json"]))
+
+# Export all header files from different programming models
+filegroup(
+    name = "mpi_headers",
+    srcs = glob(["mpi/**/*.h"]),
+)
+
+# MPICH's headers include each other with angle brackets, so a C++ target that
+# includes mpi.h needs mpi/include itself on the include path.
+cc_library(
+    name = "mpi",
+    hdrs = [":mpi_headers"],
+    includes = ["mpi/include"],
+)
+
+filegroup(
+    name = "nvshmem_headers",
+    srcs = glob(["mynvshmem/**/*.h"]),
+)
+
+# The stand-in NVSHMEM headers the raiser is written against (see
+# include/spmd/TargetABI/NVSHMEM.h). They include cuda_runtime.h, which no
+# Bazel target provides: a C++ target including them supplies it itself, as
+# //test/abi:nvshmem_abi_test does.
+cc_library(
+    name = "nvshmem",
+    hdrs = [":nvshmem_headers"],
+    includes = ["mynvshmem/include"],
+)
+
+filegroup(
+    name = "nccl_headers",
+    srcs = glob(["nccl/**/*.h"]),
+)
+
+# nccl.h is the real upstream header and includes CUDA's runtime headers, which
+# no Bazel target provides: a C++ target including it supplies those itself, as
+# //test/abi:nccl_abi_test does.
+cc_library(
+    name = "nccl",
+    hdrs = [":nccl_headers"],
+    includes = ["nccl/include"],
+)
+
+filegroup(
+    name = "shmem_headers",
+    srcs = glob(["shmem/**/*.h"]),
+)
+
+# Sandia OpenSHMEM's headers include each other with angle brackets, so a C++
+# target that includes shmem.h needs shmem/include itself on the include path.
+cc_library(
+    name = "shmem",
+    hdrs = [":shmem_headers"],
+    includes = ["shmem/include"],
+)
+
+filegroup(
+    name = "all_program_model_headers",
+    srcs = [
+        ":mpi_headers",
+        ":nccl_headers",
+        ":nvshmem_headers",
+        ":shmem_headers",
+    ],
+)
+
+# This makes the headers available for use in includes
+cc_library(
+    name = "program_models",
+    hdrs = [":all_program_model_headers"],
+    includes = ["."],
+)
+
+filegroup(
+    name = "includesProgramModels",
+    srcs = glob(["**"]),
+    visibility = ["//visibility:public"],
+)

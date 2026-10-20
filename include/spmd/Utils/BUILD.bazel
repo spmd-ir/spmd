@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "PassUtilsHeader",
+    hdrs = [
+        "PassUtils.h",
+    ],
+    includes = ["../.."],
+    deps = [
+        "//include/spmd:SPMDTypes",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "MemoryOffsetsHeader",
+    hdrs = [
+        "MemoryOffsets.h",
+    ],
+    includes = ["../.."],
+    deps = [
+        "@llvm-project//mlir:DataLayoutInterfaces",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+    ],
+)

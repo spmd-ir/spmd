@@ -1,0 +1,364 @@
+# SPDX-FileCopyrightText: 2026 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# Lowerings of the SPMD dialect to a programming model's runtime calls.
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "LowerSPMDCommon",
+    srcs = ["LowerSPMDCommon.cpp"],
+    hdrs = ["LowerSPMDCommon.h"],
+    includes = ["."],
+    deps = [
+        "//include/spmd:SPMDDialect",
+        "//include/spmd:SPMDOps",
+        "//include/spmd/Utils:PassUtilsHeader",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:TransformUtils",
+        # Not used here, but SPMDOps.h includes their generated headers and
+        # //include/spmd:SPMDOps does not export them, so Bazel's inclusion
+        # check needs them listed.
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:ParallelCombiningOpInterface",
+        "@llvm-project//mlir:SCFDialect",
+    ],
+)
+
+# The inversion every lowering shares: one slot per C argument, derived from
+# the CACTS map the raiser reads and the USIS API description rather than
+# written out again, and the rule that picks a call for an operation.
+cc_library(
+    name = "LoweringTable",
+    srcs = ["LoweringTable.cpp"],
+    hdrs = ["LoweringTable.h"],
+    includes = ["."],
+    deps = [
+        ":LowerSPMDCommon",
+        "//include/spmd:SPMDOps",
+        "//include/spmd/Utils:PassUtilsHeader",
+        "//lib/spmd/passes/CACTS:Common",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        # Not used here, but SPMDOps.h includes their generated headers and
+        # //include/spmd:SPMDOps does not export them, so Bazel's inclusion
+        # check needs them listed.
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:ParallelCombiningOpInterface",
+        "@llvm-project//mlir:SCFDialect",
+    ],
+)
+
+# What the inversion cannot say about CUDA, which is almost nothing: every
+# argument of the two calls the raiser maps is an operand the dialect already
+# holds in the C type the prototype wants.
+cc_library(
+    name = "CUDALoweringTable",
+    srcs = ["CUDALoweringTable.cpp"],
+    hdrs = ["CUDALoweringTable.h"],
+    includes = ["."],
+    deps = [
+        ":LoweringTable",
+        "//lib/spmd/passes/CACTS:CudaTransformer",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+# What the inversion cannot say about MPI: the MPICH ABI of each argument, and
+# which callee to pick when several raise to the same operation.
+cc_library(
+    name = "MPILoweringTable",
+    srcs = ["MPILoweringTable.cpp"],
+    hdrs = ["MPILoweringTable.h"],
+    includes = ["."],
+    deps = [
+        ":LoweringTable",
+        "//lib/spmd/passes/CACTS:MpiTransformer",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+# What the inversion cannot say about NCCL: the ABI of each argument, and which
+# of its two broadcasts to pick.
+cc_library(
+    name = "NCCLLoweringTable",
+    srcs = ["NCCLLoweringTable.cpp"],
+    hdrs = ["NCCLLoweringTable.h"],
+    includes = ["."],
+    deps = [
+        ":LoweringTable",
+        "//lib/spmd/passes/CACTS:NcclTransformer",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+# What the inversion cannot say about the OpenSHMEM family -- OpenSHMEM and
+# NVSHMEM: the ABI of each argument, and which of the many spellings of one call
+# to pick.
+cc_library(
+    name = "SHMEMLoweringTable",
+    srcs = ["SHMEMLoweringTable.cpp"],
+    hdrs = ["SHMEMLoweringTable.h"],
+    includes = ["."],
+    deps = [
+        ":LoweringTable",
+        "//lib/spmd/passes/CACTS:NvshmemTransformer",
+        "//lib/spmd/passes/CACTS:ShmemTransformer",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+# What the inversion cannot say about OpenMP's runtime queries, which is
+# little: they take no argument and ask the current team.
+cc_library(
+    name = "OMPLoweringTable",
+    srcs = ["OMPLoweringTable.cpp"],
+    hdrs = ["OMPLoweringTable.h"],
+    includes = ["."],
+    deps = [
+        ":LoweringTable",
+        "//include/spmd:SPMDOps",
+        "//lib/spmd/passes/CACTS:OmpTransformer",
+        "@llvm-project//mlir:IR",
+        # Not used here, but SPMDOps.h includes their generated headers and
+        # //include/spmd:SPMDOps does not export them, so Bazel's inclusion
+        # check needs them listed.
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:ParallelCombiningOpInterface",
+        "@llvm-project//mlir:SCFDialect",
+    ],
+)
+
+cc_library(
+    name = "LowerSPMD",
+    srcs = ["LowerSPMD.cpp"],
+    includes = ["."],
+    deps = [
+        ":LowerSPMDCommon",
+        ":LowerSPMDToCUDA",
+        ":LowerSPMDToMPI",
+        ":LowerSPMDToNCCL",
+        ":LowerSPMDToNVSHMEM",
+        ":LowerSPMDToOMP",
+        ":LowerSPMDToSHMEM",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDPasses",
+        "//include/spmd/Utils:PassUtilsHeader",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:ControlFlowInterfaces",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:TransformUtils",
+        # Not used here, but SPMDOps.h includes their generated headers and
+        # //include/spmd:SPMDOps does not export them, so Bazel's inclusion
+        # check needs them listed.
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:ParallelCombiningOpInterface",
+        "@llvm-project//mlir:SCFDialect",
+    ],
+)
+
+cc_library(
+    name = "LowerSPMDToCUDA",
+    srcs = ["LowerSPMDToCUDA.cpp"],
+    hdrs = ["LowerSPMDToCUDA.h"],
+    includes = ["."],
+    deps = [
+        ":CUDALoweringTable",
+        ":LowerSPMDCommon",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDPasses",
+        "//include/spmd/TargetABI:CUDA",
+        "//include/spmd/Utils:PassUtilsHeader",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:MemRefDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:TransformUtils",
+        # Not used here, but SPMDOps.h includes their generated headers and
+        # //include/spmd:SPMDOps does not export them, so Bazel's inclusion
+        # check needs them listed.
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:ParallelCombiningOpInterface",
+        "@llvm-project//mlir:SCFDialect",
+    ],
+)
+
+# The lowering both models of the OpenSHMEM family share, driven by an
+# SHMEMTarget each: LowerSPMDToSHMEM and LowerSPMDToNVSHMEM.
+cc_library(
+    name = "LowerSPMDToSHMEMFamily",
+    srcs = ["LowerSPMDToSHMEMFamily.cpp"],
+    hdrs = ["LowerSPMDToSHMEMFamily.h"],
+    includes = ["."],
+    deps = [
+        ":LowerSPMDCommon",
+        ":SHMEMLoweringTable",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDTraits",
+        "//include/spmd/Utils:PassUtilsHeader",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:MemRefDialect",
+        "@llvm-project//mlir:SideEffectInterfaces",
+        "@llvm-project//mlir:TransformUtils",
+        # Not used here, but SPMDOps.h includes their generated headers and
+        # //include/spmd:SPMDOps does not export them, so Bazel's inclusion
+        # check needs them listed.
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:ParallelCombiningOpInterface",
+        "@llvm-project//mlir:SCFDialect",
+    ],
+)
+
+cc_library(
+    name = "LowerSPMDToSHMEM",
+    srcs = ["LowerSPMDToSHMEM.cpp"],
+    hdrs = ["LowerSPMDToSHMEM.h"],
+    includes = ["."],
+    deps = [
+        ":LowerSPMDCommon",
+        ":LowerSPMDToSHMEMFamily",
+        "//include/spmd:SPMDPasses",
+        "//include/spmd/TargetABI:OpenSHMEM",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:Pass",
+    ],
+)
+
+cc_library(
+    name = "LowerSPMDToNVSHMEM",
+    srcs = ["LowerSPMDToNVSHMEM.cpp"],
+    hdrs = ["LowerSPMDToNVSHMEM.h"],
+    includes = ["."],
+    deps = [
+        ":LowerSPMDCommon",
+        ":LowerSPMDToSHMEMFamily",
+        "//include/spmd:SPMDPasses",
+        "//include/spmd/TargetABI:NVSHMEM",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:Pass",
+    ],
+)
+
+# What -lower-spmd-to-nvshmem emits, and what the program called besides,
+# mapped from the stand-in NVSHMEM headers to NVIDIA's host library.
+cc_library(
+    name = "NVSHMEMToHostABI",
+    srcs = ["NVSHMEMToHostABI.cpp"],
+    includes = ["."],
+    deps = [
+        ":LowerSPMDCommon",
+        "//include/spmd:SPMDPasses",
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:FunctionInterfaces",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:Pass",
+    ],
+)
+
+cc_library(
+    name = "LowerSPMDToNCCL",
+    srcs = ["LowerSPMDToNCCL.cpp"],
+    hdrs = ["LowerSPMDToNCCL.h"],
+    includes = ["."],
+    deps = [
+        ":LowerSPMDCommon",
+        ":NCCLLoweringTable",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDPasses",
+        "//include/spmd:SPMDTraits",
+        "//include/spmd/TargetABI:MPICH",
+        "//include/spmd/TargetABI:NCCL",
+        "//include/spmd/TargetABI:OpenSHMEM",
+        "//include/spmd/Utils:PassUtilsHeader",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:MemRefDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:TransformUtils",
+        # Not used here, but SPMDOps.h includes their generated headers and
+        # //include/spmd:SPMDOps does not export them, so Bazel's inclusion
+        # check needs them listed.
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:ParallelCombiningOpInterface",
+        "@llvm-project//mlir:SCFDialect",
+    ],
+)
+
+cc_library(
+    name = "LowerSPMDToOMP",
+    srcs = ["LowerSPMDToOMP.cpp"],
+    hdrs = ["LowerSPMDToOMP.h"],
+    includes = ["."],
+    deps = [
+        ":LowerSPMDCommon",
+        ":OMPLoweringTable",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDPasses",
+        "//include/spmd/Utils:PassUtilsHeader",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:FunctionInterfaces",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:OpenMPDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:TransformUtils",
+        # Not used here, but SPMDOps.h includes their generated headers and
+        # //include/spmd:SPMDOps does not export them, so Bazel's inclusion
+        # check needs them listed.
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:ParallelCombiningOpInterface",
+        "@llvm-project//mlir:SCFDialect",
+    ],
+)
+
+cc_library(
+    name = "LowerSPMDToMPI",
+    srcs = ["LowerSPMDToMPI.cpp"],
+    hdrs = ["LowerSPMDToMPI.h"],
+    includes = ["."],
+    deps = [
+        ":LowerSPMDCommon",
+        ":MPILoweringTable",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDPasses",
+        "//include/spmd/TargetABI:MPICH",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:MemRefDialect",
+        "@llvm-project//mlir:SideEffectInterfaces",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:TransformUtils",
+        # Not used here, but SPMDOps.h includes their generated headers and
+        # //include/spmd:SPMDOps does not export them, so Bazel's inclusion
+        # check needs them listed.
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:ParallelCombiningOpInterface",
+        "@llvm-project//mlir:SCFDialect",
+    ],
+)

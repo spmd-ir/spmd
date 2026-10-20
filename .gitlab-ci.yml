@@ -1,0 +1,508 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# `compliance` runs first on purpose. Its two jobs -- `formatting` and `reuse`
+# -- are the only ones that do not extend `.vars`, so they carry neither the
+# SLURM parameters nor CI_MODE, and each clones the commit under test itself
+# rather than using the workspace `build` populates. Nothing about them depends
+# on the build, they take seconds, and `formatting` is a hard gate: running
+# them ahead of `build` means a formatting slip is reported in under a minute
+# instead of after a 48-core build, and does not pay for that build at all.
+#
+# The cost is that `reuse` no longer overlaps `build` as it did when it sat in
+# the `build` stage. That is cheap here -- the runner workspace survives
+# between pipelines, so its venv and `pip install` are close to no-ops after
+# the first run -- and it buys `reuse` an early verdict too. If the ordering
+# ever does need to be undone, moving `compliance` back below `build` is the
+# whole change; the jobs themselves are position independent.
+stages:
+  - compliance
+  - build
+  - setup
+  - unit-test
+  - test
+  - apps
+  - cleanup
+
+variables:
+  GIT_STRATEGY: none
+  SLURM_PARAM_TASKS: "-n 1"
+
+default:
+  tags: ["downscope2"]
+  id_tokens:
+    HPC_CI_TOKEN:
+     aud: aixCIlenz
+
+.vars:
+  variables:
+    NUM_CORES: "48"
+    SLURM_PARAM_CPUS: "-c ${NUM_CORES}"
+    SLURM_PARAM_PARTITION: "--partition=c23ms"
+    SLURM_PARAM_TIME: "-t 45"
+    SLURM_DPARAM_PARTITION: "--partition=c23ms"
+    SLURM_DPARAM_CONSTRAINT: "-C Rocky9"
+    SLURM_PARAM_CONSTRAINT: "-C Rocky9"
+    SLURM_PARAM_ACCOUNT: "-A rwth1282"
+    SLURM_DPARAM_ACCOUNT: "-A rwth1282"
+    CI_MODE: "SingleSlurmJobAcrossStages"
+    BAZEL_TARGET: "//utility:spmd-verify"
+    BAZEL_COMPILE_STRATEGY: "opt"
+
+# Formatting gate: every tracked C/C++ source must match .clang-format, and
+# every tracked Bazel file must match buildifier's canonical layout.
+#
+# Deliberately not a container job. This runner is a Slurm shell executor, so
+# `image:` is ignored and apt-get has no root to work with; `ml LLVM/20.1.7`
+# supplies clang-format 20.1.7 -- the same module that provides the build's
+# host clang -- which is the version utility/run-clang-format.sh pins. That pin
+# is the point: clang-format's output changes between major versions, so an
+# unpinned check would reject trees a developer had just formatted. It is
+# deliberately not the llvm-project Bazel fetches (XLA's pin of LLVM main),
+# which moves with every dependency bump; see the script's header comment.
+#
+# The check is over the whole tree rather than over the merge request's diff
+# (`git clang-format --diff ${CI_MERGE_REQUEST_DIFF_BASE_SHA}`, which is what
+# this job used to be). The tree was swept in one go, so whole-tree is now
+# strictly stronger: it also catches a file that is reformatted by something
+# other than a merge request, and it needs no diff base, so it works on
+# scheduled and tag pipelines too.
+#
+# Hard gate: no `allow_failure: true`, same policy as the proxy-app jobs. The
+# ALLOW_FAILURE variable is a different thing -- it stops the runner cancelling
+# the shared Slurm job when a job fails.
+formatting:
+  stage: compliance
+  variables:
+    ALLOW_FAILURE: "1" #Needed so that the runner does not cancel the shared Slurm job
+  script:
+    - ml purge
+    - ml GCCcore/14.2.0 LLVM/20.1.7
+    # The runner workspace survives between pipelines (GIT_STRATEGY: none) and
+    # accumulates build artefacts, so clone into a directory of our own to be
+    # sure the check sees exactly the commit under test. Same reasoning, and
+    # the same "already exists and is not an empty directory" trap, as `reuse`.
+    - rm -rf format_repo
+    - git clone "$CI_REPOSITORY_URL" format_repo
+    - cd format_repo
+    - git checkout "$CI_COMMIT_SHA"
+    # Both checks always run, so one failure does not hide the other; the job
+    # fails if either did. Script lines share one shell, so FORMAT_EXIT carries
+    # across them -- the same trick .test uses for EXIT_CODE.
+    - FORMAT_EXIT=0
+    - ./utility/run-clang-format.sh --check || FORMAT_EXIT=1
+    # --bootstrap downloads the pinned buildifier (sha256-checked) unless the
+    # cache below already holds it. BUILDIFIER_DIR points into the runner
+    # workspace, which survives between pipelines, so this is one download per
+    # runner rather than one per pipeline. It is outside format_repo on
+    # purpose: that directory is deleted and re-cloned on every run.
+    - BUILDIFIER_DIR=${CI_PROJECT_DIR}/.buildifier ./utility/run-buildifier.sh --check --bootstrap || FORMAT_EXIT=1
+    - exit $FORMAT_EXIT
+
+.common:
+  script:
+    - ml purge 
+    - ml GCCcore/14.2.0 LLVM/20.1.7 CUDA/13.1.0 CMake/4.0.3 Ninja/1.12.1 Python/3.13.5 Bazel/7.4.1-Java-21 git/2.50
+    - export CC=clang CXX=clang++
+    - export BUILD_DIR=/dev/shm/$USER/build
+    - export BAZEL_BUILD_DIR=$BUILD_DIR/bazel
+    - export SPMD_SRC_DIR=$PWD
+    - export BAZEL_BIN_DIR=$SPMD_SRC_DIR/bazel-bin
+    - export REACTANT_BUILD_DIR=$BUILD_DIR/build_reactant
+    - mkdir -p $BUILD_DIR
+
+.build-common:
+  resource_group: build
+  extends: .vars
+  stage: build
+
+build:
+  extends: .build-common
+  variables:
+    GIT_STRATEGY: clone
+    GIT_SUBMODULE_STRATEGY: recursive
+    GIT_SUBMODULE_UPDATE_FLAGS: --remote
+  script:
+    - quota
+    - !reference [.common, script]
+    - time bazel --output_base=${BAZEL_BUILD_DIR} build -c ${BAZEL_COMPILE_STRATEGY} --spawn_strategy=local ${BAZEL_TARGET} --jobs=${NUM_CORES}
+
+.unit-test:
+  stage: unit-test
+  extends: .vars
+
+# Hermetic dialect/pass unit tests: one lit_test per test/spmd/**/*.mlir, each
+# running spmd-opt | FileCheck. Reuses the output base `build` populated, so
+# only spmd-opt's own delta and FileCheck get built here. Bazel's per-test
+# JUnit files live behind the bazel-testlogs symlink, outside the project
+# directory, so they are copied in for the report.
+unit-test:
+  extends: .unit-test
+  variables:
+    ALLOW_FAILURE: "1" #Needed so that the runner does not cancel the shared Slurm job
+  script:
+    - !reference [.common, script]
+    - time bazel --output_base=${BAZEL_BUILD_DIR} test -c ${BAZEL_COMPILE_STRATEGY} --spawn_strategy=local --jobs=${NUM_CORES} --test_output=errors //test:spmd_tests || EXIT_CODE=$?
+    - mkdir -p ${CI_PROJECT_DIR}/unit-test-reports
+    - for xml in $(find -L bazel-testlogs/test -name test.xml); do cp "$xml" "${CI_PROJECT_DIR}/unit-test-reports/$(basename "$(dirname "$xml")").xml"; done
+    - exit ${EXIT_CODE:-0}
+  artifacts:
+    when: always
+    reports:
+      junit: ${CI_PROJECT_DIR}/unit-test-reports/*.xml
+
+setup-env:
+  stage: setup
+  extends: .vars
+  script:
+    - !reference [.common, script]
+    - python -m venv env
+    - source env/bin/activate
+    - pip install lit junit2html
+
+reuse:
+  stage: compliance
+  variables:
+    ALLOW_FAILURE: "1" #Needed so that the runner does not cancel the shared Slurm job
+  script:
+    - ml Python
+    # The runner workspace survives between pipelines (GIT_STRATEGY: none), so
+    # anything created here is still present on the next run. Two consequences,
+    # both of which have bitten this job:
+    #   - `git clone` into a fixed path fails with "already exists and is not an
+    #     empty directory" on every run after the first, so clear it first.
+    #   - `pip install reuse` into a surviving venv is a no-op, which silently
+    #     pinned CI to whatever version was installed first (5.0.2) rather than
+    #     the one the REUSE.toml was written against. Pin it explicitly, and use
+    #     a venv of our own instead of sharing setup-env's `env`, whose contents
+    #     are unrelated (lit, junit2html).
+    - rm -rf reuse_repo
+    - python -m venv reuse-env
+    - source reuse-env/bin/activate
+    - pip install --upgrade 'reuse>=6,<7'
+    - reuse --version
+    # Clone into a separate directory so workspace build artefacts (env/,
+    # bazel-*, reuse-env/) are not linted as if they were part of the repo.
+    - git clone "$CI_REPOSITORY_URL" reuse_repo
+    - cd reuse_repo
+    - git checkout "$CI_COMMIT_SHA"
+    - reuse lint
+  allow_failure: true
+
+.test:
+  stage: test
+  extends: .vars
+  variables:
+    ALLOW_FAILURE: "1" #Needed so that the runner does not cancel the shared Slurm job
+    SLURM_PARAM_CPUS: "-c 24"
+
+  script:
+    - !reference [.common, script]
+    - source env/bin/activate
+    - export SPMD_TEST_DIR=$BUILD_DIR/${TEST_CASE}_checks
+    - cmake -S $SPMD_SRC_DIR/externals/${TEST_REPO_NAME} -B $SPMD_TEST_DIR -DSPMD_PATH=$BAZEL_BIN_DIR/utility
+    - LIT_OPTS="-j${NUM_CORES} -v" cmake --build $SPMD_TEST_DIR -- -j$(nproc --all) check-${TEST_CASE} || EXIT_CODE=$?
+    - cp $SPMD_TEST_DIR/*.{json,xml} ${CI_PROJECT_DIR}
+    - cd ${CI_PROJECT_DIR}
+    - junit2html --report-matrix ${TEST_CASE}_report.html -- *.xml
+    - echo "Test report at ${CI_JOB_URL}/artifacts/file/${TEST_CASE}_report.html"
+    - exit $EXIT_CODE
+  artifacts:
+    when: always
+    reports:
+      junit: ${CI_PROJECT_DIR}/check-${TEST_CASE}*.xml
+    paths:
+      - ${CI_PROJECT_DIR}/*.html
+
+test-race:
+  extends: .test
+  variables:
+    TEST_CASE: race
+    TEST_REPO_NAME: data-race-detection-benchmark-suite
+
+test-collective:
+  extends: .test
+  variables:
+    TEST_CASE: collective
+    TEST_REPO_NAME: collective-verification-benchmark-suite
+
+test-thread-safety:
+  extends: .test
+  variables:
+    TEST_CASE: thread-safety
+    TEST_REPO_NAME: data-race-detection-benchmark-suite
+
+# check-dataRace regression on whole proxy applications. Each app's build
+# script ends by running spmd-verify on the linked whole-program bitcode, so
+# these jobs exercise the entire source -> bitcode -> spmd-opt pipeline on real
+# code, not on a reduced test case.
+#
+# They deliberately do NOT gate on spmd-verify's exit status. CheckDataRace
+# calls signalPassFailure() whenever the error set is non-empty, so a finding
+# and a crash both leave the process at 1 and the status carries no signal.
+# The assertions below read the report instead:
+#
+#   PROXYAPP_EXPECT=silent  (default) the app must be reported race free
+#   PROXYAPP_EXPECT=report            the app must still report its known false
+#                                     positives -- a clean result fails the job
+#
+# `silent` is the real regression gate. `report` is XFAIL, in the same sense the
+# lit suites use it, for the two apps whose findings are known false positives
+# (see stencil and tealeaf below): the job fails if the banner never appears --
+# what a failed compile, a bitcode without `main`, or an spmd-opt crash all look
+# like -- and it also fails if the app comes back clean, because that means the
+# underlying cause was fixed and the app should return to PROXYAPP_EXPECT=silent.
+# What `report` still does not catch is a change in the *number* of findings; a
+# count or baseline assertion would, but tealeaf saturates CheckDataRace's
+# hard-coded 100-finding cap (kMaxErrorCount), so that needs the cap to become a
+# pass option first.
+#
+# These are a hard gate: no `allow_failure: true`. An app with known false
+# positives is moved to PROXYAPP_EXPECT=report with the cause written down,
+# rather than the whole job being made non-blocking -- same policy as the
+# dropped `collectives` check in hpgmg-checks further down.
+#
+# Caveat: the build and the check are a single command inside each app's build
+# script, so a build failure is caught only through the missing banner. If a
+# stale .bc from an earlier run survives in the workspace, the checker analyses
+# that one and the job still passes.
+.proxyapp-base:
+  stage: apps
+  extends: .vars
+  variables:
+    SLURM_PARAM_CPUS: "-c 3"
+    ALLOW_FAILURE: "1" #Needed so that the runner does not cancel the shared Slurm job
+    PROXYAPP_EXPECT: "silent"
+  when: always
+
+# Assertions over the captured build+check log in ${PROXYAPP_LOG}. Referenced
+# by .proxyapp-make and .proxyapp-sh, which differ only in how they build.
+# The two strings are CheckDataRace's own output; keep them in sync with
+# printErrorInfos() in lib/spmd/passes/CheckDataRace.cpp.
+.proxyapp-assert:
+  script:
+    - |
+      PROXYAPP_BANNER="Static Verification of Data Races:"
+      PROXYAPP_CLEAN="No Data Race Found"
+
+      if ! grep -qF -- "${PROXYAPP_BANNER}" "${PROXYAPP_LOG}"; then
+        echo "FAIL: ${APP_SUBDIR}: check-dataRace produced no report; the app" \
+             "did not build, its bitcode has no 'main', or spmd-opt crashed" >&2
+        exit 1
+      fi
+
+      if [ "${PROXYAPP_EXPECT}" = "silent" ]; then
+        if grep -qF -- "${PROXYAPP_CLEAN}" "${PROXYAPP_LOG}"; then
+          echo "PASS: ${APP_SUBDIR}: check-dataRace true negative - '${PROXYAPP_CLEAN}'"
+        else
+          echo "FAIL: ${APP_SUBDIR}: expected '${PROXYAPP_CLEAN}', got findings" >&2
+          exit 1
+        fi
+      else
+        # Expected-to-report, i.e. XFAIL: the findings here are known false
+        # positives, so findings are the expected outcome and a clean result is
+        # the failure -- it means the cause was fixed and this app should go
+        # back to being a real regression gate.
+        if grep -qF -- "${PROXYAPP_CLEAN}" "${PROXYAPP_LOG}"; then
+          echo "FAIL: ${APP_SUBDIR}: expected the known false positives, but" \
+               "check-dataRace reported '${PROXYAPP_CLEAN}'. The cause appears" \
+               "fixed -- set PROXYAPP_EXPECT=silent and delete the note above" \
+               "this job." >&2
+          exit 1
+        fi
+        echo "PASS: ${APP_SUBDIR}: check-dataRace reported findings as expected" \
+             "(known false positives, PROXYAPP_EXPECT=${PROXYAPP_EXPECT})"
+      fi
+
+.proxyapp-make:
+  extends: .proxyapp-base
+  script:
+    - !reference [.common, script]
+    - cd $CI_PROJECT_DIR/externals/data-race-detection-benchmark-suite/proxyApps/${APP_SUBDIR}
+    - PROXYAPP_LOG=$(mktemp)
+    - SPMD_WORKSPACE_DIR=$SPMD_SRC_DIR make ${APP_NAME} 2>&1 | tee "${PROXYAPP_LOG}" || true
+    - !reference [.proxyapp-assert, script]
+
+.proxyapp-sh:
+  extends: .proxyapp-base
+  script:
+    - !reference [.common, script]
+    - cd $CI_PROJECT_DIR/externals/data-race-detection-benchmark-suite/proxyApps/${APP_SUBDIR}
+    - PROXYAPP_LOG=$(mktemp)
+    - SPMD_WORKSPACE_DIR=$SPMD_SRC_DIR bash ${EXE_SCRIPT} 2>&1 | tee "${PROXYAPP_LOG}" || true
+    - !reference [.proxyapp-assert, script]
+
+
+# PROXYAPP_EXPECT=report: check-dataRace reports 48 findings here that are all
+# false positives. stencil.c is the suite's own race-free MPI proxy-app entry
+# (see overview/overview.tex, "MPI no race" column), and every finding pairs a
+# local store with an MPI_Put that an MPI_Win_fence has already completed --
+# either across the iter loop's back edge (stencil.c:346 vs the put at :348,
+# with the fences at :342 and :358 in between) or, worse, against a store into
+# `out`, which does not alias the window buffer at all. Restore the default
+# once RMA fence synchronisation is honoured across the loop back edge.
+stencil:
+  extends: .proxyapp-make
+  variables:
+    APP_NAME: "stencil"
+    APP_SUBDIR: "PRK/MPIRMA/Stencil"
+    PROXYAPP_EXPECT: "report"
+
+stencil-shmem:
+  extends: .proxyapp-make
+  variables:
+    APP_NAME: "stencil"
+    APP_SUBDIR: "PRK/SHMEM/Stencil"
+
+miniweather:
+  extends: .proxyapp-sh
+  variables:
+    APP_SUBDIR: "miniWeather/c/build"
+    EXE_SCRIPT: "cmake_claix_llvm_cpu.sh"
+
+# PROXYAPP_EXPECT=report: check-dataRace hits its 100-finding cap here, and all
+# of them come from one cause. driver/remote_halo_driver.cpp:49 declares
+# `MPI_Request requests[max_messages]` and hands out `&requests[n]` /
+# `&requests[n+1]` at a non-constant index, then completes them with
+# MPI_Waitall(num_messages, requests, ...). The handles are not trackable
+# through the array, so no Isend/Irecv is ever considered complete and every
+# later access in the module is flagged against a still-pending request --
+# which is why 49 findings land in driver/main.cpp and 25 in
+# driver/settings.cpp, files that contain no halo exchange at all. This is the
+# known "comm relevant handles stored in lists" weakness the suite tracks as
+# newTestCases/implementationProblems/mpi/00{7,8}-*-winNotTrackable.c.
+tealeaf:
+  extends: .proxyapp-sh
+  variables:
+    APP_SUBDIR: "TeaLeaf"
+    EXE_SCRIPT: "build.sh"
+    PROXYAPP_EXPECT: "report"
+
+# Thread-safety and collectives regression on the same proxy apps. The
+# .proxyapp-* jobs above run one build through check-dataRace; each of these
+# builds its app twice and asserts the outcome each build must produce:
+#
+#   incorrect thread-safety                 -> must be reported (true positive)
+#   correct   ${PROXYAPP_CORRECT_CHECKS}    -> must all stay silent (true negatives)
+#
+# The `correct` build serves every check in PROXYAPP_CORRECT_CHECKS, so the
+# default of "thread-safety collectives" gets three results out of two builds.
+# Config and checks are the build script's positional arguments; see
+# externals/data-race-detection-benchmark-suite/proxyApps/proxyapp-common.sh,
+# whose assertions match the strings litify.sh puts in the corresponding lit
+# suites. These are a hard gate: no `allow_failure: true` -- which is why a
+# check that is a known false positive is dropped from a job's
+# PROXYAPP_CORRECT_CHECKS (see hpgmg-checks) rather than the whole job being
+# made non-blocking.
+.proxyapp-checks:
+  stage: apps
+  extends: .vars
+  variables:
+    SLURM_PARAM_CPUS: "-c 8"
+    ALLOW_FAILURE: "1" #Needed so that the runner does not cancel the shared Slurm job
+    PROXYAPP_CORRECT_CHECKS: "thread-safety collectives"
+  when: always
+  script:
+    - !reference [.common, script]
+    - cd $CI_PROJECT_DIR/externals/data-race-detection-benchmark-suite/proxyApps/${APP_SUBDIR}
+    - |
+      EXIT_CODE=0
+      run() {
+        echo "=== ${APP_SUBDIR}: $*"
+        if ! SPMD_WORKSPACE_DIR=$SPMD_SRC_DIR bash ${EXE_SCRIPT} "$@"; then
+          echo "FAILED: ${APP_SUBDIR} $*"
+          EXIT_CODE=1
+        fi
+      }
+      run incorrect thread-safety
+      run correct ${PROXYAPP_CORRECT_CHECKS}
+      exit $EXIT_CODE
+
+# funneled app, MPI+OpenMP; incorrect config is the public source's MPI_Init.
+miniweather-checks:
+  extends: .proxyapp-checks
+  variables:
+    APP_SUBDIR: "miniWeather/c/build"
+    EXE_SCRIPT: "build_mpi_omp.sh"
+
+# funneled app, MPI+OpenMP; incorrect config is the public source's MPI_Init.
+tealeaf-checks:
+  extends: .proxyapp-checks
+  variables:
+    APP_SUBDIR: "TeaLeaf"
+    EXE_SCRIPT: "buildOmp.sh"
+
+# multiple app (built with USE_MPI_THREAD_MULTIPLE); incorrect config is the
+# upstream MPI_THREAD_FUNNELED request.
+#
+# `collectives` is deliberately dropped from PROXYAPP_CORRECT_CHECKS here: on
+# HPGMG-FV check-collectives currently reports five findings that are all false
+# positives, and they are not a regression to chase -- they became visible only
+# once ExecutionContextAnalysis stopped truncating (before that the analysis
+# left every program point after the first scf.for uninitialized, so HPGMG was
+# reported clean vacuously). Two independent causes:
+#
+#   * finite-volume/source/level.c:1255 (MPI_Allreduce) -- reached only through
+#     the guard LLVM builds around create_level's `exit(0)` malloc-failure
+#     paths, whose condition depends on level->num_my_boxes and is therefore
+#     rank-non-uniform. Sound in the abstract, useless in practice.
+#   * finite-volume/source/level.c:974 and :989 (omp wsloop) -- the trip-count
+#     guard the OpenMP lowering itself emits around each `#pragma omp parallel
+#     for`. It is thread-uniform by construction, but its condition is loaded
+#     from the heap-allocated level struct and UniformityAnalysis cannot prove
+#     that, so the wsloop looks like it is skipped by part of the team.
+#
+# The two thread-safety assertions below remain hard gates. Restore
+# "thread-safety collectives" once either cause is addressed.
+hpgmg-checks:
+  extends: .proxyapp-checks
+  variables:
+    APP_SUBDIR: "hpgmg"
+    EXE_SCRIPT: "build-wrapper.sh"
+    PROXYAPP_CORRECT_CHECKS: "thread-safety"
+
+# Execution tests (test/exec/): each self-checking MPI program is compiled
+# through the SPMD dialect and back with `spmd-verify compile` and run under
+# mpiexec, so a lowering that produces wrong code fails here even when every
+# unit test still matches its CHECK lines. See test/exec/lit.cfg.py.
+#
+# The lowering emits MPICH ABI handles, so the programs link against MPICH;
+# `spmd-verify compile` refuses an MPI whose mpi.h disagrees. MPICH is loaded on
+# top of the build modules only now, after the build: Bazel keys its actions on
+# the environment, and loading it for `build` would rebuild LLVM.
+# HYDRA_BOOTSTRAP=fork keeps mpiexec from launching the ranks through srun,
+# which the single-task Slurm allocation this pipeline shares would refuse.
+#
+# allow_failure: true while the suite is new. Make it a hard gate like the
+# proxy-app checks once it has run green in CI.
+roundtrip-exec:
+  stage: apps
+  extends: .vars
+  variables:
+    SLURM_PARAM_CPUS: "-c 8"
+    ALLOW_FAILURE: "1" #Needed so that the runner does not cancel the shared Slurm job
+    HYDRA_BOOTSTRAP: "fork"
+  allow_failure: true
+  when: always
+  script:
+    - !reference [.common, script]
+    - source env/bin/activate
+    # LLVM for libomp, which the OpenMP programs link against.
+    - ml GCC/14.2.0 MPICH/4.3.0 LLVM/20.1.7
+    - cd $SPMD_SRC_DIR
+    - lit -sv -j 2 --xunit-xml-output=${CI_PROJECT_DIR}/exec-tests.xml test/exec
+  artifacts:
+    when: always
+    reports:
+      junit: ${CI_PROJECT_DIR}/exec-tests.xml
+
+# Dummy job to terminate Slurm job
+cleanup:
+  stage: cleanup
+  extends: .vars
+  variables:
+    END_SINGLE_SLURM_JOB: "1"
+  script:
+    - echo "Cleaning up"
+  when: always

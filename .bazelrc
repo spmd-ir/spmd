@@ -1,0 +1,100 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+common --noenable_bzlmod
+
+# TODO: Migrate for https://github.com/bazelbuild/bazel/issues/7260
+common --noincompatible_enable_cc_toolchain_resolution
+
+common --announce_rc
+
+common --repo_env=USE_PYWRAP_RULES=True
+common --copt=-DGRPC_BAZEL_BUILD
+common --host_copt=-DGRPC_BAZEL_BUILD
+common --action_env=GRPC_BAZEL_RUNTIME=1
+common --repo_env=PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=upb
+common --action_env=PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=upb
+
+common --experimental_repo_remote_exec
+common --cxxopt=-Wno-deprecated-declarations --host_cxxopt=-Wno-deprecated-declarations
+common --cxxopt=-Wno-sign-compare --host_cxxopt=-Wno-sign-compare
+common --cxxopt=-Wno-array-bounds --host_cxxopt=-Wno-array-bounds
+common --cxxopt=-Wno-comment --host_cxxopt=-Wno-comment
+common --cxxopt=-Wno-invalid-constexpr --host_cxxopt=-Wno-invalid-constexpr
+common --cxxopt=-Wno-mismatched-new-delete --host_cxxopt=-Wno-mismatched-new-delete
+common --cxxopt=-Wno-unused-but-set-parameter --host_cxxopt=-Wno-unused-but-set-parameter
+common --cxxopt=-Wno-unused-but-set-variable --host_cxxopt=-Wno-unused-but-set-variable
+common --cxxopt=-Wno-misleading-indentation --host_cxxopt=-Wno-misleading-indentation
+common --cxxopt=-Wno-unused-function --host_cxxopt=-Wno-unused-function
+common --cxxopt=-Wno-parentheses --host_cxxopt=-Wno-parentheses
+common --cxxopt=-Wno-unused-local-typedefs --host_cxxopt=-Wno-unused-local-typedefs
+common --cxxopt=-Wno-reorder --host_cxxopt=-Wno-reorder
+common --cxxopt=-Wno-missing-braces --host_cxxopt=-Wno-missing-braces
+common --cxxopt=-Wno-range-loop-construct --host_cxxopt=-Wno-range-loop-construct
+
+# for gcc
+# common --cxxopt=-Wno-class-memaccess --host_cxxopt=-Wno-class-memaccess
+# common --cxxopt=-Wno-maybe-uninitialized --host_cxxopt=-Wno-maybe-uninitialized
+# common --cxxopt=-Wno-stringop-overread --host_cxxopt=-Wno-stringop-overread
+
+common --cxxopt=-std=c++17 --host_cxxopt=-std=c++17
+
+common --color=yes
+
+# common --copt=-fbracket-depth=1024 --host_copt=-fbracket-depth=1024
+common --define=grpc_no_ares=true
+common --define=tsl_link_protobuf=true
+common --define open_source_build=true
+common --define framework_shared_object=true
+common --define tsl_protobuf_header_only=true
+common --define=allow_oversize_protos=true
+
+
+# Some targets have the same py source file, but use different
+# configurations via `requires-` tags. This results in an action
+# conflict when precompiling. Disable to avoid that problem.
+# See https://github.com/bazel-contrib/rules_python/issues/2445
+build --@rules_python//python/config_settings:precompile=force_disabled
+
+#build -c opt
+
+# TEMPORARY: several SPMD targets depend on @enzyme_ad//src/enzyme_ad/jax's
+# EnzymeXLADialect and RegistryUtils, which that package does not export
+# (its default_visibility is //:__subpackages__). Without this flag the build
+# fails with nine "violates visibility" errors. Upstream fix: mark both targets
+# visibility = ["//visibility:public"] in Enzyme-JAX. Once that is merged and
+# ENZYME_JAX_COMMIT in workspace.bzl is bumped past it, DELETE this line --
+# keeping it also suppresses genuine layering mistakes inside this repo.
+build --check_visibility=false
+
+# --config=dev_dbg / --config=dev_opt: turn on assertions, dumps and a real
+# llvm_unreachable in builds that would otherwise define NDEBUG. Referenced by
+# README.md; these were commented out, so every documented invocation of them
+# failed with "Config value 'dev_opt' is not defined".
+build:dev_dbg --copt=-DLLVM_ENABLE_ASSERTIONS --cxxopt=-DLLVM_ENABLE_ASSERTIONS
+build:dev_dbg --copt=-DLLVM_ENABLE_DUMP --cxxopt=-DLLVM_ENABLE_DUMP
+build:dev_dbg --copt=-UNDEBUG --cxxopt=-UNDEBUG
+build:dev_dbg --copt=-DLLVM_ENABLE_BACKTRACES --cxxopt=-DLLVM_ENABLE_BACKTRACES
+build:dev_dbg --copt=-DLLVM_ENABLE_CRASH_OVERRIDES --cxxopt=-DLLVM_ENABLE_CRASH_OVERRIDES
+# optional:
+# build:dev_dbg --copt=-frtti --cxxopt=-frtti
+# build:dev_dbg --copt=-fsanitize=address --cxxopt=-fsanitize=address
+
+# Assertions on top of an otherwise-optimised build.
+build:dev_opt --copt=-DLLVM_ENABLE_ASSERTIONS --cxxopt=-DLLVM_ENABLE_ASSERTIONS
+build:dev_opt --copt=-UNDEBUG --cxxopt=-UNDEBUG
+
+build --linkopt=-fuse-ld=lld
+build --cxxopt=-fbracket-depth=1024 
+# to avoid occasional rebuild
+build --experimental_strict_action_env 
+# since --experimental_strict_action_env is now blocking the shell environment, 
+# Bazel no longer sees CC=clang and CXX=clang++, so it falls back to the system GCC 
+build --action_env=CC=clang
+build --action_env=CXX=clang++
+build --host_action_env=CC=clang
+build --host_action_env=CXX=clang++
+# replace with actual path:
+build --host_action_env=LD_LIBRARY_PATH
+build --action_env=LD_LIBRARY_PATH

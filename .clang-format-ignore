@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# Subtrees clang-format must never touch. This file is the single source of
+# truth for what is excluded: utility/run-clang-format.sh hands clang-format
+# every tracked C/C++ source in the repository and clang-format itself skips
+# the ones matched here, so the project-wide sweep, the CI check and an
+# editor formatting on save all agree without a second list to keep in sync.
+#
+# Note the pattern repetition: clang-format matches these with POSIX fnmatch
+# rules, where `*` does NOT cross a `/` and `**` is not supported (see
+# clang/lib/Format/MatchFilePath.cpp). `foo/` and `foo/*` therefore do not
+# match `foo/bar/baz.h` -- one glob per path depth is the only way to exclude
+# a subtree. Deepest tracked path today is 4 components; 5 is headroom.
+
+# Vendored programming-model headers (MPICH / SHMEM / NCCL / NVSHMEM), kept
+# byte-identical to upstream so re-imports stay reviewable.
+includesProgramModels/*
+includesProgramModels/*/*
+includesProgramModels/*/*/*
+includesProgramModels/*/*/*/*
+includesProgramModels/*/*/*/*/*
+
+# Test inputs: their layout is often part of what is being tested, and lit RUN
+# lines and line-number-sensitive diagnostics must not move.
+test/*
+test/*/*
+test/*/*/*
+test/*/*/*/*
+test/*/*/*/*/*
+
+# Enzyme-JAX's patches, copied verbatim -- see patches/README.md.
+patches/*
+patches/*/*
+
+# Benchmark-suite submodules, formatted (or not) by their own repositories.
+externals/*
+externals/*/*
+externals/*/*/*
+externals/*/*/*/*
+externals/*/*/*/*/*

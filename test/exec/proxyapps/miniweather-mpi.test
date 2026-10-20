@@ -1,0 +1,22 @@
+# miniWeather's MPI version (miniWeather/c/miniWeather_mpi.cpp, the program of
+# CI's `miniweather` job), compiled through the SPMD dialect and run with the
+# problem of its upstream MPI_TEST: a 100x50 thermal for 400 simulated seconds,
+# about a second on one rank.  _OUT_FREQ=-1 compiles the NetCDF output away,
+# which is why Inputs/pnetcdf.h only needs to declare it.
+#
+# REQUIRES: proxyapps
+#
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: %reactant-clang %lto-cflags -D_NX=100 -D_NZ=50 -D_SIM_TIME=400 -D_OUT_FREQ=-1 -D_DATA_SPEC=DATA_SPEC_THERMAL -DNO_INFORM -I%mpi-include -I%S/Inputs -c %proxyapps/miniWeather/c/miniWeather_mpi.cpp -o %t/miniWeather.o
+# RUN: %reactant-clang %lto-ldflags -o %t/miniWeather.bc %t/miniWeather.o
+# RUN: env SPMD_LDFLAGS=-lm %spmd-verify compile -o %t/miniWeather %t/miniWeather.bc
+#
+# RUN: %mpiexec -n 1 %t/miniWeather | FileCheck %s
+# RUN: %mpiexec -n 2 %t/miniWeather | FileCheck %s
+# RUN: %mpiexec -n 4 %t/miniWeather | FileCheck %s
+#
+# The acceptance criteria of upstream's check_output.sh for this problem: the
+# relative change in mass is below 1e-13 in magnitude, and the change in total
+# energy is negative and below 4.5e-5 in magnitude.
+# CHECK: d_mass: {{(-?0\.0+e\+00|-?[1-9]\.[0-9]+e-(1[4-9]|[2-9][0-9]|[1-9][0-9][0-9]))}}
+# CHECK-NEXT: d_te: {{ *-([0-3]\.[0-9]+e-05|4\.[0-4][0-9]*e-05|[1-9]\.[0-9]+e-(0[6-9]|[1-9][0-9]|[1-9][0-9][0-9]))}}

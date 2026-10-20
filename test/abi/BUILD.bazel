@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: 2026 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# Checks the hand-copied target ABI tables in include/spmd/TargetABI against the
+# vendored headers they copy. A value that drifts fails to compile, so these
+# tests fail at build time rather than at run time. //test:spmd_tests runs them.
+
+package(default_visibility = ["//visibility:public"])
+
+cc_test(
+    name = "mpich_abi_test",
+    size = "small",
+    srcs = ["mpich_abi_test.cpp"],
+    deps = [
+        "//include/spmd/TargetABI:MPICH",
+        "//includesProgramModels:mpi",
+    ],
+)
+
+# nccl.h includes cuda_runtime.h and cuda_fp16.h for the one type it needs from
+# CUDA, cudaStream_t. nccl-cuda-stub declares that type the way CUDA's
+# driver_types.h does, so the vendored header compiles without a CUDA install.
+cc_library(
+    name = "nccl_cuda_stub",
+    testonly = True,
+    hdrs = [
+        "nccl-cuda-stub/cuda_fp16.h",
+        "nccl-cuda-stub/cuda_runtime.h",
+    ],
+    includes = ["nccl-cuda-stub"],
+)
+
+cc_test(
+    name = "nccl_abi_test",
+    size = "small",
+    srcs = ["nccl_abi_test.cpp"],
+    deps = [
+        ":nccl_cuda_stub",
+        "//include/spmd/TargetABI:NCCL",
+        "//includesProgramModels:nccl",
+    ],
+)
+
+# The vendored NVSHMEM headers include cuda_runtime.h for CUDA's
+# execution-space qualifiers and two launch types. nvshmem-cuda-stub declares
+# them as CUDA does for a compiler that is not compiling CUDA.
+cc_library(
+    name = "nvshmem_cuda_stub",
+    testonly = True,
+    hdrs = ["nvshmem-cuda-stub/cuda_runtime.h"],
+    includes = ["nvshmem-cuda-stub"],
+)
+
+cc_test(
+    name = "nvshmem_abi_test",
+    size = "small",
+    srcs = ["nvshmem_abi_test.cpp"],
+    deps = [
+        ":nvshmem_cuda_stub",
+        "//include/spmd/TargetABI:NVSHMEM",
+        "//includesProgramModels:nvshmem",
+    ],
+)
+
+cc_test(
+    name = "openshmem_abi_test",
+    size = "small",
+    srcs = ["openshmem_abi_test.cpp"],
+    deps = [
+        "//include/spmd/TargetABI:OpenSHMEM",
+        "//includesProgramModels:shmem",
+    ],
+)

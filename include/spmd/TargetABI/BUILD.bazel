@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2026 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# The predefined handles and constants of the ABIs the lowerings emit calls
+# under, one header per target ABI.
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "CUDA",
+    hdrs = [
+        "CUDA.h",
+    ],
+    includes = ["../.."],
+    deps = [
+        "@llvm-project//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "MPICH",
+    hdrs = [
+        "MPICH.h",
+    ],
+    includes = ["../.."],
+    deps = [
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "NCCL",
+    hdrs = [
+        "NCCL.h",
+    ],
+    includes = ["../.."],
+    deps = [
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "NVSHMEM",
+    hdrs = [
+        "NVSHMEM.h",
+    ],
+    includes = ["../.."],
+    deps = [
+        "@llvm-project//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "OpenSHMEM",
+    hdrs = [
+        "OpenSHMEM.h",
+    ],
+    includes = ["../.."],
+    deps = [
+        "@llvm-project//llvm:Support",
+    ],
+)

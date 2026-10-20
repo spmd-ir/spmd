@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# SPMD Utility Library
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "PassUtils",
+    srcs = [
+        "PassUtils.cpp",
+    ],
+    deps = [
+        "//include/spmd:SPMDTypes",
+        "//include/spmd/Utils:PassUtilsHeader",
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:ControlFlowDialect",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:SCFDialect",
+    ],
+)
+
+cc_library(
+    name = "MemoryOffsets",
+    srcs = [
+        "MemoryOffsets.cpp",
+    ],
+    deps = [
+        "//include/spmd/Utils:MemoryOffsetsHeader",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:CallOpInterfaces",
+        "@llvm-project//mlir:DataLayoutInterfaces",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:MemRefDialect",
+        "@llvm-project//mlir:ViewLikeInterface",
+    ],
+)

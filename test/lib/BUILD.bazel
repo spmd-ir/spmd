@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# Test-only passes, and the spmd-opt build that registers them.
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "TestPasses",
+    srcs = [
+        "TestBufferSlices.cpp",
+        "TestCUDALoweringTable.cpp",
+        "TestExecutionContext.cpp",
+        "TestHandleOrigins.cpp",
+        "TestMPILoweringTable.cpp",
+        "TestNCCLLoweringTable.cpp",
+        "TestOMPLoweringTable.cpp",
+        "TestSHMEMLoweringTable.cpp",
+        "TestUniformity.cpp",
+    ],
+    hdrs = ["TestPasses.h"],
+    deps = [
+        "//include/spmd:SPMDOps",
+        "//include/spmd/Analysis:SPMDAnalysisHeaders",
+        "//include/spmd/Utils:MemoryOffsetsHeader",
+        "//include/spmd/Utils:PassUtilsHeader",
+        "//lib/spmd/Analysis:SPMDAnalysis",
+        "//lib/spmd/Conversion:CUDALoweringTable",
+        "//lib/spmd/Conversion:MPILoweringTable",
+        "//lib/spmd/Conversion:NCCLLoweringTable",
+        "//lib/spmd/Conversion:OMPLoweringTable",
+        "//lib/spmd/Conversion:SHMEMLoweringTable",
+        "//lib/spmd/Utils:MemoryOffsets",
+        "//lib/spmd/Utils:PassUtils",
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+    ],
+)
+
+# spmd-opt with the test passes registered. The unit tests in //test run this
+# binary; spmd-verify uses //spmd-opt:spmd-opt, which has none of them.
+cc_binary(
+    name = "spmd-opt",
+    srcs = ["//spmd-opt:spmd-opt.cpp"],
+    data = [
+        "@llvm-project//llvm:llvm-symbolizer",
+    ],
+    local_defines = ["SPMD_INCLUDE_TEST_PASSES"],
+    deps = [
+        ":TestPasses",
+        "//spmd-opt:SPMDOptDeps",
+    ],
+)

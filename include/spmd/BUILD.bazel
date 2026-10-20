@@ -1,0 +1,237 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# TableGen code generation for SPMD dialect
+
+load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
+
+package(default_visibility = ["//visibility:public"])
+
+td_library(
+    name = "SPMDAllTdFiles",
+    srcs = [
+        "SPMDAttributes.td",
+        "SPMDDialect.td",
+        "SPMDEffects.td",
+        "SPMDInterfaces.td",
+        "SPMDOps.td",
+        "SPMDPasses.td",
+        "SPMDTypes.td",
+    ],
+    includes = ["."],
+    deps = [
+        "@llvm-project//mlir:IRDLTdFiles",
+        "@llvm-project//mlir:LLVMOpsTdFiles",  # OK here
+        "@llvm-project//mlir:OpBaseTdFiles",
+        "@llvm-project//mlir:PassBaseTdFiles",
+        "@llvm-project//mlir:SideEffectInterfacesTdFiles",
+    ],
+)
+
+gentbl_cc_library(
+    name = "SPMDPassesIncGen",
+    tbl_outs = [
+        (
+            ["-gen-pass-decls"],
+            "SPMDPasses.h.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "SPMDPasses.td",
+    deps = [":SPMDAllTdFiles"],
+)
+
+gentbl_cc_library(
+    name = "SPMDInterfacesIncGen",
+    tbl_outs = [
+        (
+            ["-gen-op-interface-decls"],
+            "SPMDInterfaces.h.inc",
+        ),
+        (
+            ["-gen-op-interface-defs"],
+            "SPMDInterfaces.cpp.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "SPMDInterfaces.td",
+    deps = [":SPMDAllTdFiles"],
+)
+
+gentbl_cc_library(
+    name = "SPMDOpsIncGen",
+    tbl_outs = [
+        (
+            ["-gen-op-decls"],
+            "SPMDOps.h.inc",
+        ),
+        (
+            ["-gen-op-defs"],
+            "SPMDOps.cpp.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "SPMDOps.td",
+    deps = [":SPMDAllTdFiles"],
+)
+
+gentbl_cc_library(
+    name = "SPMDTypesIncGen",
+    tbl_outs = [
+        (
+            ["-gen-typedef-decls"],
+            "SPMDTypes.h.inc",
+        ),
+        (
+            ["-gen-typedef-defs"],
+            "SPMDTypes.cpp.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "SPMDTypes.td",
+    deps = [":SPMDAllTdFiles"],
+)
+
+td_library(
+    name = "SPMDDialectOnlyTdFiles",
+    srcs = [
+        "SPMDDialect.td",
+    ],
+    includes = ["."],
+    deps = [
+        "@llvm-project//mlir:IRDLTdFiles",
+        "@llvm-project//mlir:OpBaseTdFiles",
+    ],
+)
+
+gentbl_cc_library(
+    name = "SPMDDialectIncGen",
+    tbl_outs = [
+        (
+            ["-gen-dialect-decls"],
+            "SPMDOpsDialect.h.inc",
+        ),
+        (
+            ["-gen-dialect-defs"],
+            "SPMDOpsDialect.cpp.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "SPMDDialect.td",
+    deps = [":SPMDDialectOnlyTdFiles"],
+)
+
+gentbl_cc_library(
+    name = "SPMDAttributesIncGen",
+    tbl_outs = [
+        (
+            ["-gen-attrdef-decls"],
+            "SPMDAttributes.h.inc",
+        ),
+        (
+            ["-gen-attrdef-defs"],
+            "SPMDAttributes.cpp.inc",
+        ),
+        (
+            ["-gen-enum-decls"],
+            "SPMDEnums.h.inc",
+        ),
+        (
+            ["-gen-enum-defs"],
+            "SPMDEnums.cpp.inc",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "SPMDAttributes.td",
+    deps = [":SPMDDialectOnlyTdFiles"],
+)
+
+cc_library(
+    name = "SPMDDialect",
+    hdrs = ["SPMDDialect.h"],
+    includes = ["."],
+    deps = [
+        ":SPMDDialectIncGen",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "SPMDTypes",
+    hdrs = ["SPMDTypes.h"],
+    includes = ["."],
+    deps = [
+        ":SPMDDialect",
+        ":SPMDTypesIncGen",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "SPMDAttributes",
+    hdrs = ["SPMDAttributes.h"],
+    includes = ["."],
+    deps = [
+        ":SPMDAttributesIncGen",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "SPMDInterfaces",
+    hdrs = ["SPMDInterfaces.h"],
+    includes = [".."],
+    deps = [
+        ":SPMDInterfacesIncGen",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "SPMDOps",
+    hdrs = [
+        "SPMDOps.h",
+    ],
+    includes = [
+        "..",  # makes <spmd/SPMDOps.h> work
+    ],
+    deps = [
+        ":SPMDAttributes",
+        ":SPMDDialect",
+        ":SPMDInterfaces",
+        ":SPMDOpsIncGen",
+        ":SPMDTraits",
+        ":SPMDTypes",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "SPMDPasses",
+    hdrs = [
+        "SPMDPasses.h",
+    ],
+    includes = [
+        "..",  # makes <spmd/SPMDPasses.h> work
+    ],
+    deps = [
+        ":SPMDDialect",
+        ":SPMDOps",
+        ":SPMDPassesIncGen",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "SPMDTraits",
+    hdrs = [
+        "SPMDTraits.h",
+    ],
+    includes = [
+        "..",
+    ],
+    deps = [
+        "@llvm-project//mlir:IR",
+    ],
+)

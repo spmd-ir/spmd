@@ -1,0 +1,186 @@
+% SPDX-FileCopyrightText: 2026 Semih Burak, RWTH Aachen University
+%
+% SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+%
+% From source to executable through the SPMD dialect. Build with `make` in
+% this directory; the page is cropped to the picture, so the PDF can be
+% \includegraphics'd as is, or the tikzpicture copied into a document that
+% loads the same libraries and the styles below.
+
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[scaled=0.82]{beramono}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,backgrounds,calc,fit,positioning}
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\setlength\PreviewBorder{2pt}
+% Wider than the picture, so its line is not reported as overfull.
+\setlength\textwidth{50cm}
+
+% Okabe-Ito: distinguishable with colour-vision deficiencies.
+\definecolor{cFrontend}{HTML}{666666}
+\definecolor{cRaise}{HTML}{0072B2}
+\definecolor{cOpt}{HTML}{009E73}
+\definecolor{cSelect}{HTML}{E69F00}
+\definecolor{cLower}{HTML}{CC79A7}
+\definecolor{cGeneric}{HTML}{56B4E9}
+\definecolor{cCodegen}{HTML}{D55E00}
+
+\tikzset{
+  every picture/.style={font=\sffamily\footnotesize, >={Latex[length=1.8mm]}},
+  % An IR level or other artifact the pipeline passes along.
+  ir/.style={draw, thick, rounded corners=5pt, fill=white, align=center,
+    inner sep=3pt, minimum height=8mm},
+  % A pass or tool.
+  pass/.style={draw=#1!80!black, fill=white, align=center, inner sep=2.5pt,
+    font=\ttfamily\scriptsize},
+  % A stage: the background box around its passes, and its title.
+  stage/.style={draw=#1, fill=#1!12, rounded corners=3pt, inner sep=4pt},
+  title/.style={font=\sffamily\scriptsize\bfseries, text=#1!65!black,
+    inner sep=1pt},
+  note/.style={font=\sffamily\scriptsize, align=center, inner sep=1pt},
+  flow/.style={->, thick},
+  sub/.style={->, draw=black!60},
+  side/.style={->, densely dashed, draw=black!60},
+  model/.style={pass=cLower, minimum width=15mm, font=\sffamily\scriptsize},
+}
+
+% Horizontal room for an arrow: from a stage box to the next node, and from a
+% node to the first pass of the next stage (which also spans the box's padding).
+\newlength\irgap \setlength\irgap{6mm}
+\newlength\passgap \setlength\passgap{7.5mm}
+
+% \stagebox{colour}{name}{fit list}: the box behind a stage's passes.
+\newcommand\stagebox[3]{%
+  \begin{scope}[on background layer]
+    \node[stage=#1, fit=#3] (#2) {};
+  \end{scope}}
+
+\begin{document}
+\begin{tikzpicture}
+
+  % ---------------------------------------------------------------- row 1
+
+  \node[ir] (src) at (0,0) {C/C++ program\\[1pt]
+    {\scriptsize MPI $\cdot$ OpenSHMEM $\cdot$ NVSHMEM}\\
+    {\scriptsize NCCL $\cdot$ CUDA $\cdot$ OpenMP}};
+
+  % Frontend. A stage's widest pass is placed first, so that the box around
+  % it keeps its distance from the node before.
+  \node[pass=cFrontend, anchor=west, font=\sffamily\scriptsize]
+    (polygeist) at ($(src.east) + (\passgap, -3mm)$)
+    {Polygeist raising\\(Enzyme-JAX)};
+  \node[pass=cFrontend, above=3mm of polygeist] (clang) {reactant-clang};
+  \node[title=cFrontend, above=1.5mm of clang] (tFrontend) {Frontend};
+  \draw[sub] (clang) -- (polygeist);
+  \stagebox{cFrontend}{sFrontend}{(tFrontend) (clang) (polygeist)}
+
+  \node[ir, anchor=west] (mlir) at ($(sFrontend.east |- src) + (\irgap, 0)$)
+    {MLIR\\[1pt]{\scriptsize llvm, scf, affine,}\\{\scriptsize memref, omp}};
+
+  % Raising
+  \node[pass=cRaise, anchor=west] (cacts) at ($(mlir.east) + (\passgap, -3mm)$)
+    {convert-apiCalls-to-spmd};
+  \node[pass=cRaise, above=3mm of cacts] (omp2spmd) {omp-to-spmd};
+  \node[title=cRaise, above=1.5mm of omp2spmd] (tRaise) {Raising};
+  \draw[sub] (omp2spmd) -- (cacts);
+  \stagebox{cRaise}{sRaise}{(tRaise) (omp2spmd) (cacts)}
+
+  \node[ir, very thick, anchor=west, minimum width=17mm] (spmd)
+    at ($(sRaise.east |- src) + (\irgap, 0)$) {SPMD IR};
+
+  % What CACTS maps each programming model's calls with.
+  \node[ir, thin, draw=black!60, rounded corners=1pt, anchor=south west,
+    font=\sffamily\scriptsize] (apijson)
+    at ($(sRaise.north west) + (0, 5mm)$) {API descriptions\\\texttt{api.json} (USIS)};
+  \draw[side] (apijson) -- (apijson |- sRaise.north);
+
+  % Optimization rewrites SPMD IR into SPMD IR, so it sits above it.
+  \node[pass=cOpt, above=10mm of spmd] (coalesce) {coalesce-comm};
+  \node[pass=cOpt, above=1.5mm of coalesce] (barriers)
+    {eliminate-redundant-barriers};
+  \node[pass=cOpt, above=1.5mm of barriers] (redcomm)
+    {eliminate-redundant-comm};
+  \node[pass=cOpt, above=1.5mm of redcomm] (deadcomm) {eliminate-dead-comm};
+  \node[title=cOpt, above=1.5mm of deadcomm] (tOpt) {Optimization (optional)};
+  \stagebox{cOpt}{sOpt}{(tOpt) (deadcomm) (redcomm) (barriers) (coalesce)}
+
+  % ---------------------------------------------------------------- row 2
+
+  % Model selection
+  \node[note, anchor=north west] (models) at ($(src.west) + (1.5mm, -33mm)$)
+    {user option:\\
+     \texttt{models=shmem=mpi,}\\\texttt{\phantom{models=}omp=keep}};
+  \node[pass=cSelect, above=1.5mm of models] (lowerspmd) {lower-spmd};
+  \node[title=cSelect, above=1.5mm of lowerspmd] (tSelect) {Model selection};
+  \stagebox{cSelect}{sSelect}{(tSelect) (lowerspmd) (models)}
+
+  % Model-specific lowering
+  \node[model, anchor=west] (lSHMEM)
+    at ($(sSelect.east) + (\passgap, 0)$) {OpenSHMEM};
+  \node[model, above=1.5mm of lSHMEM] (lMPI) {MPI};
+  \node[model, below=1.5mm of lSHMEM] (lNVSHMEM) {NVSHMEM};
+  \node[model, right=1.5mm of lSHMEM] (lCUDA) {CUDA};
+  \node[model, above=1.5mm of lCUDA] (lNCCL) {NCCL};
+  \node[model, below=1.5mm of lCUDA] (lOMP) {OpenMP};
+  \node[note, font=\ttfamily\scriptsize, anchor=south west] (lowerto)
+    at ($(lMPI.north west) + (0, 1.5mm)$)
+    {lower-spmd-to-\textsf{\itshape model}};
+  \node[title=cLower, above=1.5mm of lowerto.north west, anchor=south west]
+    (tLower) {Model-specific lowering};
+  \stagebox{cLower}{sLower}{(tLower) (lowerto) (lMPI) (lNVSHMEM) (lOMP)}
+
+  \node[ir, anchor=west] (calls) at ($(sLower.east |- lSHMEM) + (\irgap, 0)$)
+    {MLIR\\[1pt]{\scriptsize runtime calls,}\\{\scriptsize omp dialect}};
+
+  % Generic lowering
+  \node[pass=cGeneric, anchor=west] (polyllvm)
+    at ($(calls.east) + (\passgap, -2mm)$) {convert-polygeist-\\to-llvm};
+  \node[title=cGeneric, above=1.5mm of polyllvm] (tGeneric)
+    {Generic lowering};
+  \stagebox{cGeneric}{sGeneric}{(tGeneric) (polyllvm)}
+
+  \node[ir, anchor=west] (llvmdialect)
+    at ($(sGeneric.east |- calls) + (\irgap, 0)$) {LLVM\\dialect};
+
+  % Code generation
+  \node[pass=cCodegen, anchor=west] (translate)
+    at ($(llvmdialect.east) + (\passgap, 6mm)$) {mlir-translate};
+  \node[pass=cCodegen, below=4mm of translate] (compile) {clang -c};
+  \node[pass=cCodegen, below=4mm of compile] (link) {link};
+  \node[title=cCodegen, above=1.5mm of translate] (tCodegen)
+    {Code generation};
+  \draw[sub] (translate) -- node[note, right=0.5mm] (nIR) {LLVM IR} (compile);
+  \draw[sub] (compile) -- node[note, right=0.5mm] (nObj) {object} (link);
+  \stagebox{cCodegen}{sCodegen}{(tCodegen) (translate) (link) (nIR) (nObj)}
+
+  \node[ir, very thick, anchor=west] (exe)
+    at ($(sCodegen.east |- calls) + (\irgap, 0)$) {Executable};
+
+  % ------------------------------------------------------------------ flow
+
+  \draw[flow] (src) -- (src -| sFrontend.west);
+  \draw[flow] (mlir -| sFrontend.east) -- (mlir);
+  \draw[flow] (mlir) -- (mlir -| sRaise.west);
+  \draw[flow] (spmd -| sRaise.east) -- (spmd);
+
+  % The optimization loop: out of SPMD IR, through the passes, back in.
+  \draw[flow] ([xshift=-3mm]spmd.north) -- ([xshift=-3mm]spmd.north |- sOpt.south);
+  \draw[flow] ([xshift=3mm]spmd.north |- sOpt.south) -- ([xshift=3mm]spmd.north);
+
+  % Wrap from the end of row 1 to the start of row 2.
+  \coordinate (wrap) at ($(spmd.south |- sFrontend.south)!0.5!(spmd.south |- sLower.north)$);
+  \draw[flow, rounded corners=4pt] (spmd.south) -- (wrap)
+    -- (wrap -| sSelect.north) -- (sSelect.north);
+
+  \draw[flow] (sSelect.east |- lSHMEM) -- (sLower.west |- lSHMEM);
+  \draw[flow] (sLower.east |- calls) -- (calls);
+  \draw[flow] (calls) -- (calls -| sGeneric.west);
+  \draw[flow] (llvmdialect -| sGeneric.east) -- (llvmdialect);
+  \draw[flow] (llvmdialect) -- (llvmdialect -| sCodegen.west);
+  \draw[flow] (exe -| sCodegen.east) -- (exe);
+
+\end{tikzpicture}
+\end{document}

@@ -1,0 +1,20 @@
+# The Parallel Research Kernels' MPI one-sided stencil (PRK/MPIRMA/Stencil),
+# the program of CI's `stencil` job: three translation units linked to one
+# bitcode file, compiled through the SPMD dialect and run.  It validates its
+# own solution.  Ten iterations on a 100x100 grid take well under a second.
+#
+# REQUIRES: proxyapps
+#
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: %reactant-clang %lto-cflags -DMPI -DDOUBLE=1 -DRADIUS=2 -DSTAR=1 -DLOOPGEN=0 -DRESTRICT_KEYWORD=0 -DVERBOSE=0 -I%mpi-include -I%proxyapps/PRK/include -c %proxyapps/PRK/MPIRMA/Stencil/stencil.c -o %t/stencil.o
+# RUN: %reactant-clang %lto-cflags -DMPI -I%mpi-include -I%proxyapps/PRK/include -c %proxyapps/PRK/common/MPI_bail_out.c -o %t/MPI_bail_out.o
+# RUN: %reactant-clang %lto-cflags -DMPI -I%mpi-include -I%proxyapps/PRK/include -c %proxyapps/PRK/common/wtime.c -o %t/wtime.o
+# RUN: %reactant-clang %lto-ldflags -o %t/stencil.bc %t/stencil.o %t/MPI_bail_out.o %t/wtime.o
+# RUN: env SPMD_LDFLAGS=-lm %spmd-verify compile -o %t/stencil %t/stencil.bc
+#
+# One rank, one row of tiles, and two rows that exchange halos both ways.
+# RUN: %mpiexec -n 1 %t/stencil 10 100 | FileCheck %s
+# RUN: %mpiexec -n 2 %t/stencil 10 100 | FileCheck %s
+# RUN: %mpiexec -n 4 %t/stencil 10 100 | FileCheck %s
+#
+# CHECK: Solution validates

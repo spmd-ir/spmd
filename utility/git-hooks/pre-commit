@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# Pre-commit formatting check: the same two checks CI's `formatting` job runs,
+# narrowed to the files this commit touches, so a formatting slip costs a few
+# seconds here instead of a red pipeline.
+#
+# Enable it once per clone:
+#
+#     git config core.hooksPath utility/git-hooks
+#
+# Bypass it for one commit with `git commit --no-verify`, or for a whole shell
+# with SPMD_SKIP_FORMAT_HOOK=1.
+#
+# A missing tool warns rather than blocks. Committing from a shell with no
+# modules loaded is normal, and CI is the authoritative gate -- a hook that
+# made `git commit` impossible without `ml LLVM/20.1.7` would just get
+# disabled.
+
+set -uo pipefail
+
+if [ "${SPMD_SKIP_FORMAT_HOOK:-0}" = "1" ]; then
+  exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+mapfile -d '' -t staged < <(
+  git diff --cached --name-only --diff-filter=ACMR -z
+)
+[ ${#staged[@]} -eq 0 ] && exit 0
+
+cxx=()
+bzl=()
+for f in "${staged[@]}"; do
+  case "$f" in
+    *.c|*.cc|*.cpp|*.cxx|*.h|*.hh|*.hpp|*.cu|*.cuh) cxx+=("$f") ;;
+  esac
+  case "${f##*/}" in
+    *.bzl|*.bazel|BUILD|WORKSPACE|MODULE) bzl+=("$f") ;;
+  esac
+done
+[ ${#cxx[@]} -eq 0 ] && [ ${#bzl[@]} -eq 0 ] && exit 0
+
+# The checks read the working tree, not the index. For the usual commit those
+# are the same thing; say so when they are not, rather than reporting a
+# violation the staged content may not actually have.
+partial=()
+for f in "${cxx[@]}" "${bzl[@]}"; do
+  if ! git diff --quiet -- "$f" 2>/dev/null; then
+    partial+=("$f")
+  fi
+done
+if [ ${#partial[@]} -gt 0 ]; then
+  echo "note: these files have unstaged changes; the check below reads the" >&2
+  echo "      working tree, so its verdict may not match what you are committing:" >&2
+  printf '        %s\n' "${partial[@]}" >&2
+fi
+
+status=0
+
+# Both scripts exit 127 when their tool is absent, which is the one failure
+# this hook downgrades to a warning; anything else non-zero (unformatted, or
+# the wrong tool version, which would produce a diff CI rejects) blocks.
+if [ ${#cxx[@]} -gt 0 ]; then
+  ./utility/run-clang-format.sh --check -- "${cxx[@]}"
+  rc=$?
+  if [ "$rc" -eq 127 ]; then
+    echo "warning: clang-format not found, skipping the C/C++ format check." >&2
+    echo "         Load it with: ml GCCcore/14.2.0 LLVM/20.1.7" >&2
+  elif [ "$rc" -ne 0 ]; then
+    status=1
+  fi
+fi
+
+if [ ${#bzl[@]} -gt 0 ]; then
+  # No --bootstrap: a commit hook is the wrong place to start a download.
+  ./utility/run-buildifier.sh --check -- "${bzl[@]}"
+  rc=$?
+  if [ "$rc" -eq 127 ]; then
+    echo "warning: buildifier not found, skipping the Bazel format check." >&2
+    echo "         Fetch it once with: ./utility/run-buildifier.sh --bootstrap --check" >&2
+  elif [ "$rc" -ne 0 ]; then
+    status=1
+  fi
+fi
+
+if [ "$status" -ne 0 ]; then
+  cat >&2 <<'MSG'
+
+Commit aborted: formatting check failed. Fix and re-stage with
+
+    ./utility/run-clang-format.sh && ./utility/run-buildifier.sh
+    git add -u
+
+or bypass this hook with `git commit --no-verify`.
+MSG
+fi
+
+exit $status

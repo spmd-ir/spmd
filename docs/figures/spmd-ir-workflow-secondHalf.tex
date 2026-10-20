@@ -1,0 +1,163 @@
+% SPDX-FileCopyrightText: 2026 Semih Burak, RWTH Aachen University
+%
+% SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+%
+% Second half of the SPMD IR workflow, from SPMD IR back to an executable.
+% Mirrors spmd-ir-workflow-firstHalf.tex: same colours, styles, document
+% shapes and panel heights, so the two can sit side by side.
+
+\documentclass{article}
+\usepackage{tikz}
+\usepackage{helvet}
+\renewcommand\familydefault{\sfdefault}
+\usetikzlibrary{positioning, calc, backgrounds, arrows.meta, shadows, fit}
+\usepackage[active,tightpage]{preview}
+\PreviewEnvironment{tikzpicture}
+\setlength\PreviewBorder{10pt}
+\setlength\textwidth{50cm}
+
+\definecolor{cMPI}  {HTML}{C85A17}
+\definecolor{cSHMEM}{HTML}{1F3D7A}
+\definecolor{cNCCL} {HTML}{2E7D32}
+\definecolor{cNV}   {HTML}{6A1B9A}
+\definecolor{cCUDA} {HTML}{00838F}
+\definecolor{cOMP}  {HTML}{2E75B6}
+\definecolor{cRed}  {HTML}{B01C1C}
+\definecolor{cGold} {HTML}{C99700}
+\definecolor{cPeach}{HTML}{D07A3C}
+\definecolor{cSlate}{HTML}{5F7796}
+\definecolor{cGray} {HTML}{4F4F4F}
+\definecolor{paper} {HTML}{FCFAF1}
+\definecolor{fold}  {HTML}{E7E0CC}
+\definecolor{panelG}{HTML}{6B6B6B}
+\definecolor{arrow} {HTML}{7E7E7E}
+
+\newcommand{\doc}[5]{%
+  \filldraw[fill=paper, draw=black!55, line width=0.9pt, softshadow]
+    (#1,#2) -- (#3,#2) -- (#3,#4-#5) -- (#3-#5,#4) -- (#1,#4) -- cycle;
+  \fill[fold] (#3-#5,#4) -- (#3,#4-#5) -- (#3-#5,#4-#5) -- cycle;
+  \draw[black!55, line width=0.9pt] (#3-#5,#4) -- (#3-#5,#4-#5) -- (#3,#4-#5);}
+
+% \modelcolumn{x}: the six programming models as a column centred at x, grouped
+% into process level and node level, with the group labels beside the column.
+\newcommand{\modelcolumn}[1]{%
+  \node[box, fill=cMPI!12,   draw=cMPI,   text=cMPI]   at (#1,\yA) {MPI};
+  \node[box, fill=cSHMEM!12, draw=cSHMEM, text=cSHMEM] at (#1,\yB) {SHMEM};
+  \node[box, fill=cNCCL!12,  draw=cNCCL,  text=cNCCL]  at (#1,\yC) {NCCL};
+  \node[box, fill=cNV!12,    draw=cNV,    text=cNV]    at (#1,\yD) {NVSHMEM};
+  \node[box, fill=cCUDA!12,  draw=cCUDA,  text=cCUDA]  at (#1,\yE) {CUDA};
+  \node[box, fill=cOMP!14,   draw=cOMP,   text=cOMP]   at (#1,\yF) {OpenMP};
+  \draw[grp] (#1-1.1,\yD-0.31) rectangle (#1+1.1,\yA+0.31);
+  \draw[grp] (#1-1.1,\yF-0.31) rectangle (#1+1.1,\yE+0.33);
+  \node[rotate=90, font=\footnotesize\bfseries, text=black!70]
+    at (#1-1.55,{(\yA+\yD)/2}) {Process-Level};
+  \node[rotate=90, font=\footnotesize\bfseries, text=black!70]
+    at (#1+1.50,{(\yE+\yF)/2+0.15}) {Node-Level};}
+
+\begin{document}
+\begin{tikzpicture}[
+  font=\sffamily,
+  box/.style={rounded corners=3pt, line width=0.8pt, align=center, inner sep=2.5pt,
+              minimum width=2.0cm, minimum height=0.58cm, font=\normalsize\bfseries},
+  white/.style={rounded corners=6pt, line width=1.0pt, draw=black!45, fill=white},
+  panel/.style={rounded corners=6pt, line width=1.0pt, draw=panelG!65, fill=panelG!8},
+  grp/.style={dashed, line width=0.8pt, draw=black!55, rounded corners=3pt},
+  framework/.style={dashed, line width=1.5pt, draw=black!85, rounded corners=5pt},
+  flow/.style={-{Stealth[length=3.4mm, width=3.8mm]}, line width=1.8pt, draw=arrow, line cap=round},
+  bypass/.style={-{Stealth[length=2.6mm, width=2.8mm]}, line width=1.2pt, draw=arrow,
+                 dashed, rounded corners=4pt},
+  map/.style={-{Stealth[length=2.2mm, width=2.4mm]}, line width=1.2pt, draw=arrow},
+  doctitle/.style={align=center, font=\normalsize\bfseries, text=black!80},
+  panellabel/.style={font=\large\bfseries, text=panelG!45!black},
+  softshadow/.style={drop shadow={shadow xshift=0.08cm, shadow yshift=-0.08cm,
+                     opacity=0.30, fill=black!64}},
+]
+
+% Six model rows instead of the first half's five (CUDA is new), so the rows
+% sit closer and the documents reach a little lower.
+\def\yA{5.10}\def\yB{4.46}\def\yC{3.82}\def\yD{3.18}\def\yE{2.54}\def\yF{1.90}
+\def\dtop{6.4}\def\dbot{1.4}\def\fl{0.55}\def\arry{3.5}
+\def\ttltwo{5.9}
+
+% ============ panels (background) ============
+\begin{scope}[on background layer]
+  \draw[panel] (0.4,0.5) rectangle (20.7,7.0);
+  \draw[panel] (21.95,0.5) rectangle (32.2,7.0);
+\end{scope}
+\draw[framework] (0.1,0.25) rectangle (21.0,7.7);
+
+\node[panellabel] at (10.55,0.95) {SPMD IR Toolchain};
+\node[panellabel] at (27.07,0.95) {Backend and Executable Generation};
+\node[font=\large\bfseries, text=black!85] at (10.55,7.35) {SPMD IR Framework};
+
+% ============ arrows ============
+\draw[flow] (3.70,\arry)  -- (4.70,\arry);
+\draw[flow] (9.20,\arry)  -- (10.20,\arry);
+\draw[flow] (15.50,\arry) -- (16.50,\arry);
+\draw[flow] (20.50,\arry) -- (22.20,\arry);
+\draw[flow] (26.20,\arry) -- (27.90,\arry);
+\node[doctitle, text=panelG!45!black, font=\footnotesize\bfseries] at (27.05,4.50) {Generic\\Lowering\\to LLVM IR};
+\node[doctitle, text=panelG!45!black, font=\footnotesize\bfseries] at (27.05,2.60) {Clang\\Wrapper\\+ Linker};
+
+% Optimization is optional: SPMD IR may go straight to model selection.
+\draw[bypass] (2.0,\dtop) -- (2.0,6.72) -- (12.85,6.72) -- (12.85,6.45);
+
+% ============ Doc 1: High-Level MLIR incl. SPMD IR (the first half's result) ============
+\doc{0.8}{\dbot}{3.6}{\dtop}{\fl}
+\node[doctitle] at (2.2,5.15) {High-Level\\MLIR incl.\\SPMD IR};
+\node[box, minimum width=2.25cm, minimum height=0.72cm, fill=cRed!12, draw=cRed, text=cRed] at (2.2,3.55) {SPMD\\Operations};
+\node[box, minimum width=2.25cm, minimum height=0.72cm, fill=cRed!12, draw=cRed, text=cRed] at (2.2,2.45) {Execution\\Info};
+
+% ============ Optimization Passes ============
+\draw[white] (4.75,\dbot) rectangle (9.15,\dtop);
+\node[doctitle] at (6.95,\ttltwo) {Optimization Passes\\(Optional)};
+\draw[grp] (5.0,2.87) rectangle (8.9,4.86);
+\node[font=\footnotesize\bfseries, text=black!70] at (8.15,5.08) {Elimination};
+\node[box, minimum width=3.6cm, fill=cRed!12, draw=cRed, text=cRed] at (6.95,4.50) {Dead Comm.};
+\node[box, minimum width=3.6cm, fill=cRed!12, draw=cRed, text=cRed] at (6.95,3.86) {Redundant Comm.};
+\node[box, minimum width=3.6cm, fill=cRed!12, draw=cRed, text=cRed] at (6.95,3.22) {Redundant Barriers};
+\draw[grp] (5.0,1.55) rectangle (8.9,2.33);
+\node[font=\footnotesize\bfseries, text=black!70] at (8.3,2.56) {Merging};
+\node[box, minimum width=3.6cm, fill=cRed!12, draw=cRed, text=cRed] at (6.95,1.94) {Comm. Coalescing};
+
+% ============ Model Selection ============
+\draw[white] (10.25,\dbot) rectangle (15.45,\dtop);
+\node[doctitle] at (12.85,\ttltwo) {Model Selection\\{\footnotesize user option, e.g.\ \texttt{models=shmem=mpi}}};
+\node[box, fill=cMPI!12,   draw=cMPI,   text=cMPI]   at (11.55,\yA) {MPI};
+\node[box, fill=cSHMEM!12, draw=cSHMEM, text=cSHMEM] at (11.55,\yB) {SHMEM};
+\node[box, fill=cNCCL!12,  draw=cNCCL,  text=cNCCL]  at (11.55,\yC) {NCCL};
+\node[box, fill=cNV!12,    draw=cNV,    text=cNV]    at (11.55,\yD) {NVSHMEM};
+\node[box, fill=cCUDA!12,  draw=cCUDA,  text=cCUDA]  at (11.55,\yE) {CUDA};
+\node[box, fill=cOMP!14,   draw=cOMP,   text=cOMP]   at (11.55,\yF) {OpenMP};
+\foreach \y in {\yA,\yB,\yC,\yD,\yE,\yF}
+  \draw[map] (12.62,\y) -- (13.08,\y);
+\node[box, fill=cMPI!12,   draw=cMPI,   text=cMPI]   at (14.15,\yA) {MPI};
+\node[box, fill=cMPI!12,   draw=cMPI,   text=cMPI]   at (14.15,\yB) {MPI};
+\node[box, fill=cNCCL!12,  draw=cNCCL,  text=cNCCL]  at (14.15,\yC) {NCCL};
+\node[box, fill=cNV!12,    draw=cNV,    text=cNV]    at (14.15,\yD) {NVSHMEM};
+\node[box, fill=cCUDA!12,  draw=cCUDA,  text=cCUDA]  at (14.15,\yE) {CUDA};
+\node[box, fill=cOMP!14,   draw=cOMP,   text=cOMP]   at (14.15,\yF) {OpenMP};
+
+% ============ Lowering Pass ============
+\draw[white] (16.55,\dbot) rectangle (20.45,\dtop);
+\node[doctitle] at (18.5,\ttltwo) {Lowering Pass};
+\def\uw{3.7}
+\node[box, minimum width=\uw cm, fill=cMPI!12,   draw=cMPI,   text=cMPI]   at (18.5,\yA) {SPMD $\rightarrow$ MPI};
+\node[box, minimum width=\uw cm, fill=cSHMEM!12, draw=cSHMEM, text=cSHMEM] at (18.5,\yB) {SPMD $\rightarrow$ SHMEM};
+\node[box, minimum width=\uw cm, fill=cNCCL!12,  draw=cNCCL,  text=cNCCL]  at (18.5,\yC) {SPMD $\rightarrow$ NCCL};
+\node[box, minimum width=\uw cm, fill=cNV!12,    draw=cNV,    text=cNV]    at (18.5,\yD) {SPMD $\rightarrow$ NVSHMEM};
+\node[box, minimum width=\uw cm, fill=cCUDA!12,  draw=cCUDA,  text=cCUDA]  at (18.5,\yE) {SPMD $\rightarrow$ CUDA};
+\node[box, minimum width=\uw cm, fill=cOMP!14,   draw=cOMP,   text=cOMP]   at (18.5,\yF) {SPMD $\rightarrow$ OpenMP};
+
+% ============ Doc 2: High-Level MLIR incl. API Calls ============
+\doc{22.25}{\dbot}{26.15}{\dtop}{\fl}
+\node[doctitle] at (24.2,\ttltwo) {High-Level MLIR\\incl. API Calls};
+\modelcolumn{24.2}
+
+% ============ Doc 3: Executable incl. Runtime Libraries ============
+\doc{27.95}{\dbot}{31.85}{\dtop}{\fl}
+\node[doctitle] at (29.9,\ttltwo) {Executable incl.\\Runtime Libraries};
+\modelcolumn{29.9}
+
+\end{tikzpicture}
+\end{document}

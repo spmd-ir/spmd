@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# SPMD Dialect - Root BUILD file
+
+package(default_visibility = ["//visibility:public"])
+
+# Export include directories for dependent targets
+exports_files([
+    "README.md",
+])
+
+alias(
+    name = "spmd-opt",
+    actual = "//spmd-opt:spmd-opt",
+)

@@ -1,0 +1,19 @@
+# TeaLeaf's MPI build (MODEL=serial, as in CI's `tealeaf` job), built with its
+# own CMake project into one bitcode file, compiled through the SPMD dialect
+# and run.  TeaLeaf compares its result with the reference in tea.problems.
+# Inputs/tealeaf-64x64.in is the default deck on the smallest grid that file
+# has a reference for, 64x64 cells for one step; a run takes a fraction of a
+# second.
+#
+# REQUIRES: proxyapps, cmake
+#
+# RUN: rm -rf %t && mkdir -p %t
+# RUN: cmake -S %proxyapps/TeaLeaf -B %t/build -DMODEL=serial -DENABLE_MPI=ON -DCMAKE_C_COMPILER=%reactant-clang -DCMAKE_CXX_COMPILER=%reactant-clang "-DCXX_EXTRA_FLAGS=%lto-cflags -I%mpi-include" "-DCXX_EXTRA_LINK_FLAGS=%lto-ldflags" -DALTERNATIVE_BIN_NAME=tealeaf.bc > %t/cmake.log
+# RUN: cmake --build %t/build --target tealeaf -j 4 > %t/build.log
+# RUN: env SPMD_LDFLAGS=-lm %spmd-verify compile -o %t/tealeaf %t/build/tealeaf.bc
+#
+# RUN: %mpiexec -n 1 %t/tealeaf -f %S/Inputs/tealeaf-64x64.in -p %proxyapps/TeaLeaf/tea.problems -o %t/tea.out | FileCheck %s
+# RUN: %mpiexec -n 2 %t/tealeaf -f %S/Inputs/tealeaf-64x64.in -p %proxyapps/TeaLeaf/tea.problems -o %t/tea.out | FileCheck %s
+# RUN: %mpiexec -n 4 %t/tealeaf -f %S/Inputs/tealeaf-64x64.in -p %proxyapps/TeaLeaf/tea.problems -o %t/tea.out | FileCheck %s
+#
+# CHECK: This run PASSED

@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# SPMD Optimizer Tool
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["spmd-opt.cpp"])
+
+# Everything spmd-opt links. //test/lib:spmd-opt builds the same driver with the
+# test passes added, and links this too.
+cc_library(
+    name = "SPMDOptDeps",
+    deps = [
+        # Your SPMD libraries
+        "//lib/spmd/passes:SPMDPassesLib",
+        "//lib/spmd:SPMDDialectLib",
+        "//include/spmd:SPMDDialect",
+        "//include/spmd:SPMDPasses",
+        "//include/spmd:SPMDTraits",
+        "@enzyme_ad//:RaiseLib",
+
+        # LLVM runtime support (needed for crash handler / backtrace)
+        "@llvm-project//llvm:Support",  # stack trace / backtrace implementation
+        "@llvm-project//llvm:opt-driver",  # crash handling glue / main driver
+
+        # MLIR Core
+        "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:Pass",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:MlirOptLib",
+
+        # All dialects and passes (convenience target)
+        # "@llvm-project//mlir:AllPassesAndDialects",
+
+        # Specific dialects you use
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:SCFDialect",
+        "@llvm-project//mlir:MemRefDialect",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:AsyncDialect",
+        "@llvm-project//mlir:UBDialect",
+        "@llvm-project//mlir:ControlFlowInterfaces",
+        "@enzyme_ad//src/enzyme_ad/jax:RegistryUtils",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//llvm:X86AsmParser",
+        "@llvm-project//llvm:X86CodeGen",
+    ],
+)
+
+cc_binary(
+    name = "spmd-opt",
+    srcs = ["spmd-opt.cpp"],
+    data = [
+        "@llvm-project//llvm:llvm-symbolizer",  # needed for stack trace symbolization
+    ],
+    deps = [":SPMDOptDeps"],
+)

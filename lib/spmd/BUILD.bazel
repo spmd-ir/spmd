@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# SPMD Dialect Core Library
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "SPMDDialectLib",
+    srcs = [
+        "SPMDAttributes.cpp",
+        "SPMDDialect.cpp",
+        "SPMDInterfaces.cpp",
+        "SPMDOps.cpp",
+        "SPMDTypes.cpp",
+    ],
+    hdrs = [],  # headers come from //include/spmd
+    deps = [
+        # Your own dialect/ops/types wrappers
+        "//include/spmd:SPMDDialect",
+        "//include/spmd:SPMDTypes",
+        "//include/spmd:SPMDAttributes",
+        "//include/spmd:SPMDInterfaces",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDTraits",
+
+        # Core MLIR libraries
+        "@llvm-project//mlir:IR",
+
+        # MLIR dialect libraries (pull in their IncGen automatically)
+        "@llvm-project//mlir:AffineDialect",
+        "@llvm-project//mlir:ArithDialect",
+        "@llvm-project//mlir:ArithUtils",  # optional helper functions
+        "@llvm-project//mlir:FuncDialect",
+        "@llvm-project//mlir:GPUDialect",
+        "@llvm-project//mlir:SCFDialect",
+
+        # MLIR interface libraries
+        "@llvm-project//mlir:BytecodeOpInterface",
+        "@llvm-project//mlir:CallOpInterfaces",
+        "@llvm-project//mlir:ControlFlowInterfaces",
+        "@llvm-project//mlir:InferTypeOpInterface",
+        "@llvm-project//mlir:InliningUtils",
+        "@llvm-project//mlir:LLVMDialect",
+        "@llvm-project//mlir:MemRefDialect",
+        "@llvm-project//mlir:MemorySlotInterfaces",
+        "@llvm-project//mlir:OpenMPDialect",
+        "@llvm-project//mlir:QuantOps",
+        "@llvm-project//mlir:SideEffectInterfaces",
+        "@llvm-project//mlir:Support",
+        "@llvm-project//mlir:ViewLikeInterface",
+    ],
+)

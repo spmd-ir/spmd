@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "SPMDAnalysisHeaders",
+    hdrs = [
+        "UniformityAnalysis.h",
+        "AvailableCollectives.h",
+        "CommBuffers.h",
+        "CommCompletions.h",
+        "HandleFacts.h",
+        "HandleOriginsAnalysis.h",
+        "HandleSlotAnalysis.h",
+        "CommOriginsAnalysis.h",
+        "PendingAccessAnalysis.h",
+        "ExecutionContextAnalysis.h",
+        "CollectiveMismatchAnalysis.h",
+        "ParallelContextAnalysis.h",
+        # "ExecutionInfoAnalysis.h"
+    ],
+    includes = ["."],
+    deps = [
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:IR",
+    ],
+)

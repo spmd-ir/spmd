@@ -1,0 +1,8 @@
+[submodule "externals/data-race-detection-benchmark-suite"]
+	path = externals/data-race-detection-benchmark-suite
+	url = ../data-race-detection-benchmark-suite.git
+    branch = main
+[submodule "externals/collective-verification-benchmark-suite"]
+	path = externals/collective-verification-benchmark-suite
+	url = ../collective-verification-benchmark-suite.git
+    branch = main

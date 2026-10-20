@@ -1,0 +1,168 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# SPMD CACTS (Collective API Call Transformation System) Library
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "utils",
+    srcs = ["utils.cpp"],
+    hdrs = ["utils.h"],
+    includes = ["."],
+    deps = [
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDTraits",
+        "@enzyme_ad//src/enzyme_ad/jax:EnzymeXLADialect",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+# The CACTS map's own vocabulary -- the entry, operand and result structs, the
+# injected-value helpers and the USIS reader -- without any one model's map.
+# The lowerings read it to invert the map they are the other direction of.
+cc_library(
+    name = "Common",
+    hdrs = ["common.h"],
+    includes = ["."],
+    deps = [
+        ":utils",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDTraits",
+        "//include/spmd/TargetABI:MPICH",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "MpiTransformer",
+    srcs = [
+        "mpiSpmdEntries.cpp",
+        "mpiTransformations.cpp",
+    ],
+    hdrs = [
+        "common.h",
+        "mpiSpmdEntries.h",
+        "mpiTransformations.h",
+    ],
+    includes = ["."],
+    deps = [
+        ":utils",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDTraits",
+        "//include/spmd/TargetABI:MPICH",
+        "//lib/spmd/Utils:PassUtils",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "ShmemTransformer",
+    srcs = [
+        "shmemSpmdEntries.cpp",
+        "shmemTransformations.cpp",
+    ],
+    hdrs = [
+        "common.h",
+        "shmemSpmdEntries.h",
+        "shmemTransformations.h",
+    ],
+    includes = ["."],
+    deps = [
+        ":utils",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDTraits",
+        "//include/spmd/TargetABI:MPICH",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "NcclTransformer",
+    srcs = [
+        "ncclSpmdEntries.cpp",
+        "ncclTransformations.cpp",
+    ],
+    hdrs = [
+        "common.h",
+        "ncclSpmdEntries.h",
+        "ncclTransformations.h",
+    ],
+    includes = ["."],
+    deps = [
+        ":utils",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDTraits",
+        "//include/spmd/TargetABI:MPICH",
+        "//include/spmd/TargetABI:NCCL",
+        "//lib/spmd/Utils:PassUtils",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "NvshmemTransformer",
+    srcs = [
+        "nvshmemSpmdEntries.cpp",
+        "nvshmemTransformations.cpp",
+    ],
+    hdrs = [
+        "common.h",
+        "nvshmemSpmdEntries.h",
+        "nvshmemTransformations.h",
+    ],
+    includes = ["."],
+    deps = [
+        ":utils",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDTraits",
+        "//include/spmd/TargetABI:MPICH",
+        "//include/spmd/TargetABI:NVSHMEM",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "CudaTransformer",
+    srcs = [
+        "cudaSpmdEntries.cpp",
+        "cudaTransformations.cpp",
+    ],
+    hdrs = [
+        "common.h",
+        "cudaSpmdEntries.h",
+        "cudaTransformations.h",
+    ],
+    includes = ["."],
+    deps = [
+        ":utils",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDTraits",
+        "//include/spmd/TargetABI:MPICH",
+        "//include/spmd/Utils:PassUtilsHeader",
+        "@llvm-project//mlir:IR",
+    ],
+)
+
+cc_library(
+    name = "OmpTransformer",
+    srcs = [
+        "ompSpmdEntries.cpp",
+        "ompTransformations.cpp",
+    ],
+    hdrs = [
+        "common.h",
+        "ompSpmdEntries.h",
+        "ompTransformations.h",
+    ],
+    includes = ["."],
+    deps = [
+        ":utils",
+        "//include/spmd:SPMDOps",
+        "//include/spmd:SPMDTraits",
+        "//include/spmd/TargetABI:MPICH",
+        "//lib/spmd/Utils:PassUtils",
+        "@llvm-project//mlir:IR",
+    ],
+)

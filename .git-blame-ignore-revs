@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2025 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# Commits that touched formatting only, and that `git blame` should look
+# through rather than attribute code to. Enable it once per clone with
+#
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# (GitHub's and GitLab's blame views apply this file automatically.) Only add
+# a commit here if it changed no behaviour at all.
+
+# (none yet)
