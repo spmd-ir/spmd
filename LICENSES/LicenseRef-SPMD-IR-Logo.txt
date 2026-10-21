@@ -1,0 +1,32 @@
+SPMD IR logo license
+
+Copyright 2026 Semih Burak, RWTH Aachen University. All rights reserved,
+except as granted below.
+
+The SPMD IR logo -- the files in docs/logo/ of the SPMD IR repository and the
+mark and lettering they show -- identifies the SPMD IR project. It is not
+covered by the Apache License v2.0 with LLVM Exceptions that applies to the
+rest of SPMD IR.
+
+You may, without asking:
+
+  - use the logo, unmodified, to refer to SPMD IR, for example in papers,
+    theses, slides, posters, articles, documentation and web pages about
+    SPMD IR or about work that uses it;
+  - scale it, convert it to another file format, and show it in a single
+    colour (black or white) to suit the background;
+  - redistribute the logo files as part of copies of the SPMD IR repository,
+    modified or not (forks, mirrors, packages). A fork distributed under a
+    different name must not use the logo as its own.
+
+You need written permission from the copyright holder to:
+
+  - change the logo's design, or combine it with other logos or marks;
+  - use the logo, or anything confusingly similar to it, as the logo or name
+    of another project, product or organisation;
+  - use the logo in a way that suggests that SPMD IR or its authors endorse
+    you, your work or your product.
+
+To ask, open an issue in the SPMD IR repository or contact its author.
+
+The logo is provided "as is", without warranty of any kind.

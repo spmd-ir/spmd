@@ -1,0 +1,249 @@
+# SPDX-FileCopyrightText: 2026 Semih Burak, RWTH Aachen University
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# How to cite SPMD IR. GitHub turns this file into the "Cite this
+# repository" button; it offers the preferred-citation below. Cite the
+# first SPMD IR paper (the preferred-citation) for SPMD IR in general;
+# for a specific feature or extension, cite the paper in `references`
+# that introduced it. `references` also lists work built on SPMD IR (its
+# `notes` say so). Add new papers to `references`, newest last.
+
+cff-version: 1.2.0
+message: >-
+  If you use SPMD IR, or refer to it in general, please cite the first
+  SPMD IR paper below. If you build on, or refer to, a specific feature or
+  extension, cite the paper that introduced it instead (see the
+  references).
+title: SPMD IR
+type: software
+abstract: >-
+  An MLIR dialect and toolchain for statically verifying and optimising
+  SPMD (single-program, multiple-data) parallel programs -- data races,
+  collective-communication mismatches, thread-safety violations and more
+  -- across MPI, OpenSHMEM, NVSHMEM, NCCL, CUDA and OpenMP.
+authors:
+  - given-names: Semih
+    family-names: Burak
+    affiliation: RWTH Aachen University
+    orcid: "https://orcid.org/0000-0001-6048-9643"
+repository-code: "https://github.com/spmd-ir/spmd"
+url: "https://github.com/spmd-ir"
+# CFF accepts only plain SPDX identifiers, not "Apache-2.0 WITH
+# LLVM-exception". The exception only adds permissions, so Apache-2.0 is
+# accurate; license-url points to the full terms.
+license: Apache-2.0
+license-url: "https://github.com/spmd-ir/spmd/blob/main/LICENSE"
+version: 0.1.0
+date-released: "2026-10-20"
+keywords:
+  - MLIR
+  - SPMD
+  - MPI
+  - OpenSHMEM
+  - NVSHMEM
+  - NCCL
+  - CUDA
+  - OpenMP
+  - static analysis
+  - correctness checking
+preferred-citation:
+  type: conference-paper
+  title: >-
+    SPMD IR: Unifying SPMD and Multi-value IR Showcased for Static
+    Verification of Collectives
+  authors:
+    - given-names: Semih
+      family-names: Burak
+      orcid: "https://orcid.org/0000-0001-6048-9643"
+    - given-names: Ivan R.
+      family-names: Ivanov
+      orcid: "https://orcid.org/0000-0003-0356-3768"
+    - given-names: Jens
+      family-names: Domke
+      orcid: "https://orcid.org/0000-0002-5343-414X"
+    - given-names: Matthias
+      family-names: Müller
+      orcid: "https://orcid.org/0000-0003-2545-5258"
+  collection-title: "Recent Advances in the Message Passing Interface (EuroMPI 2024)"
+  collection-type: proceedings
+  conference:
+    name: "31st European MPI Users' Group Meeting (EuroMPI 2024)"
+    city: Perth
+    region: WA
+    country: AU
+    date-start: "2024-09-25"
+    date-end: "2024-09-27"
+  editors:
+    - given-names: Claudia
+      family-names: Blaas-Schenner
+    - given-names: Christoph
+      family-names: Niethammer
+    - given-names: Tobias
+      family-names: Haas
+  publisher:
+    name: Springer Nature Switzerland
+  notes: Lecture Notes in Computer Science
+  start: 3
+  end: 20
+  year: 2025
+  doi: 10.1007/978-3-031-73370-3_1
+references:
+  - type: conference-paper
+    title: Extending the SPMD IR for RMA Models and Static Data Race Detection
+    authors:
+      - given-names: Semih
+        family-names: Burak
+        orcid: "https://orcid.org/0000-0001-6048-9643"
+      - given-names: Simon
+        family-names: Schwitanski
+        orcid: "https://orcid.org/0000-0001-7121-7205"
+      - given-names: Felix
+        family-names: Tomski
+        orcid: "https://orcid.org/0000-0003-3137-5596"
+      - given-names: Jens
+        family-names: Domke
+        orcid: "https://orcid.org/0000-0002-5343-414X"
+      - given-names: Matthias
+        family-names: Müller
+        orcid: "https://orcid.org/0000-0003-2545-5258"
+    collection-title: "Recent Advances in the Message Passing Interface (EuroMPI 2025)"
+    collection-type: proceedings
+    conference:
+      name: "32nd European MPI Users' Group Meeting (EuroMPI 2025)"
+      city: Charlotte
+      region: NC
+      country: US
+      date-start: "2025-10-01"
+      date-end: "2025-10-03"
+    editors:
+      - given-names: Joseph
+        family-names: Schuchart
+      - given-names: Aurelien
+        family-names: Bouteiller
+      - given-names: Sascha
+        family-names: Hunold
+      - given-names: Julien
+        family-names: Jaeger
+      - given-names: Christoph
+        family-names: Niethammer
+      - given-names: Brian
+        family-names: Smith
+    publisher:
+      name: Springer Nature Switzerland
+    notes: Lecture Notes in Computer Science
+    start: 143
+    end: 164
+    year: 2026
+    doi: 10.1007/978-3-032-07194-1_9
+  - type: conference-paper
+    title: >-
+      Expressing OpenMP Threading Concepts in the SPMD IR for Hybrid Static
+      Analysis
+    authors:
+      - given-names: Semih
+        family-names: Burak
+        orcid: "https://orcid.org/0000-0001-6048-9643"
+      - given-names: Felix
+        family-names: Tomski
+        orcid: "https://orcid.org/0000-0003-3137-5596"
+      - given-names: William
+        family-names: Moses
+        orcid: "https://orcid.org/0000-0003-2627-0642"
+      - given-names: Jens
+        family-names: Domke
+        orcid: "https://orcid.org/0000-0002-5343-414X"
+      - given-names: Matthias
+        family-names: Müller
+        orcid: "https://orcid.org/0000-0003-2545-5258"
+    collection-title: >-
+      OpenMP: Adaptability for Heterogeneous Multi-Device Systems
+      (IWOMP 2025)
+    collection-type: proceedings
+    conference:
+      name: "21st International Workshop on OpenMP (IWOMP 2025)"
+      city: Charlotte
+      region: NC
+      country: US
+      date-start: "2025-10-01"
+      date-end: "2025-10-03"
+    publisher:
+      name: Springer Nature Switzerland
+    notes: Lecture Notes in Computer Science
+    start: 3
+    end: 18
+    year: 2026
+    doi: 10.1007/978-3-032-41029-0_1
+  - type: conference-paper
+    title: >-
+      Coupling Static and Dynamic MPI Correctness Tools to Optimize Accuracy
+      and Overhead
+    authors:
+      - given-names: Yussur Mustafa
+        family-names: Oraji
+        orcid: "https://orcid.org/0009-0004-9922-3112"
+      - given-names: Simon
+        family-names: Schwitanski
+        orcid: "https://orcid.org/0000-0001-7121-7205"
+      - given-names: Semih
+        family-names: Burak
+        orcid: "https://orcid.org/0000-0001-6048-9643"
+      - given-names: Christian
+        family-names: Bischof
+        orcid: "https://orcid.org/0000-0003-2711-3032"
+      - given-names: Matthias
+        family-names: Müller
+        orcid: "https://orcid.org/0000-0003-2545-5258"
+    collection-title: >-
+      Proceedings of the SC '25 Workshops of the International Conference
+      for High Performance Computing, Networking, Storage and Analysis
+    collection-type: proceedings
+    conference:
+      name: "SC Workshops '25"
+      city: St. Louis
+      region: MO
+      country: US
+    publisher:
+      name: ACM
+    notes: Work built on SPMD IR, not an SPMD IR extension.
+    start: 188
+    end: 197
+    year: 2025
+    doi: 10.1145/3731599.3767360
+  - type: conference-paper
+    title: A Unified Semantic Interface Specification for Parallel Programming Tools
+    authors:
+      - given-names: Semih
+        family-names: Burak
+        orcid: "https://orcid.org/0000-0001-6048-9643"
+      - given-names: Felix
+        family-names: Tomski
+        orcid: "https://orcid.org/0000-0003-3137-5596"
+      - given-names: Joachim
+        family-names: Jenke
+        orcid: "https://orcid.org/0000-0003-0640-8966"
+      - given-names: William
+        family-names: Moses
+        orcid: "https://orcid.org/0000-0003-2627-0642"
+      - given-names: Matthias
+        family-names: Müller
+        orcid: "https://orcid.org/0000-0003-2545-5258"
+    collection-title: SC26 Workshops
+    collection-type: proceedings
+    conference:
+      name: >-
+        8th Workshop on Programming and Performance Visualization Tools
+        (ProTools), SC26
+      city: Chicago
+      region: IL
+      country: US
+      date-start: "2026-11-16"
+      date-end: "2026-11-16"
+    publisher:
+      name: IEEE
+    isbn: 979-8-3195-1221-5
+    notes: >-
+      The API specifications in includesProgramModels/*/api.json, generated
+      by USIS (https://github.com/RWTH-HPC/USIS).
+    status: in-press
+    year: 2026

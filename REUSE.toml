@@ -31,6 +31,13 @@ path = ["docs/figures/*.pdf", "docs/figures/*.png"]
 SPDX-License-Identifier = "Apache-2.0 WITH LLVM-exception"
 SPDX-FileCopyrightText = "2026 Semih Burak, RWTH Aachen University"
 
+# Logo PNGs, rendered from the SVGs beside them (which carry their own SPDX
+# header); the logo is under its own license, not the Apache License.
+[[annotations]]
+path = ["docs/logo/*.png"]
+SPDX-License-Identifier = "LicenseRef-SPMD-IR-Logo"
+SPDX-FileCopyrightText = "2026 Semih Burak, RWTH Aachen University"
+
 # Patches applied to @jax / @xla by Enzyme-JAX's repository macros. These are
 # copies of Enzyme-JAX's own patches/ files, not spmd-authored -- see
 # patches/README.md for why they have to live in this repository.

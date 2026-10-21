@@ -1,5 +1,5 @@
 ==============================================================================
-SPMD is under the Apache License v2.0 with LLVM Exceptions:
+SPMD IR is under the Apache License v2.0 with LLVM Exceptions:
 ==============================================================================
 
 Apache License
@@ -94,9 +94,9 @@ limitations under the License.
    Software.
 
 ==============================================================================
-Software from third parties included in SPMD:
+Software from third parties included in SPMD IR:
 ==============================================================================
-SPMD contains third-party files that are under different license terms. They
+SPMD IR contains third-party files that are under different license terms. They
 are not covered by the Apache License above; each keeps the license of its
 original authors. Every such file is identified in REUSE.toml, and the full
 license texts are in LICENSES/:
@@ -115,5 +115,12 @@ license texts are in LICENSES/:
                                            Exceptions, the Enzyme / Enzyme-JAX
                                            authors)
 
-Some of these headers have been modified for use with SPMD; REUSE.toml lists
+Some of these headers have been modified for use with SPMD IR; REUSE.toml lists
 which ones. The modifications are made under the original file's license.
+
+==============================================================================
+The SPMD IR logo:
+==============================================================================
+The SPMD IR logo (docs/logo/) is not covered by the Apache License above
+either. It may be used unmodified to refer to SPMD IR; its full terms are in
+LICENSES/LicenseRef-SPMD-IR-Logo.txt.
